@@ -13,11 +13,9 @@ Different programming language and their libraries use different
 formats.  E.g. format of date 2015-09-24 can be expressed at least in
 the following ways:
 
-    * `yyyy-MM-dd` ([ICU](http://userguide.icu-project.org/formatparse/datetime), [Java](https://docs.oracle.com/javase/8/docs/api/java/text/SimpleDateFormat.html))
-
-    * `%Y-%m-%d` (POSIX, Emacs)
-
-    * `Y-m-d` ([PHP](http://php.net/manual/en/function.date.php))
+* `yyyy-MM-dd` ([ICU](http://userguide.icu-project.org/formatparse/datetime), [Java](https://docs.oracle.com/javase/8/docs/api/java/text/SimpleDateFormat.html))
+* `%Y-%m-%d` (POSIX, Emacs)
+* `Y-m-d` ([PHP](http://php.net/manual/en/function.date.php))
 
 This library currently uses Java pattern format, but is internally
 written in such a way that support for other types can be added

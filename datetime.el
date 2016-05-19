@@ -1,4 +1,4 @@
-;;; datetime.el --- Library for parsing, formatting and matching timestamps  -*- lexical-binding: t -*-
+;;; datetime.el --- Parsing, formatting and matching timestamps  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2016 Paul Pogonyshev
 
@@ -88,6 +88,10 @@
 
 (define-error 'datetime-unsupported-timezone "Timezones are currently not supported")
 
+
+;; Set at the end of this file because the initializer is huge.
+(defvar datetime--locale-data nil
+  "Don't access directly, use `datetime-locale-field' instead.")
 
 (defvar datetime--pattern-parsers '((parsed . (lambda (pattern options) pattern))
                                     (java   . datetime--parse-java-pattern)))
@@ -583,7 +587,7 @@ Supported fields:
 ;;   - all patterns have the following fallbacks: `:short' defaults to
 ;;     `:medium', `:long' defaults to `:medium', `:full' defaults to
 ;;     `:long'.
-(defvar datetime--locale-data
+(setq datetime--locale-data
   '((ar
      :eras                     ["ق.م" "م"]
      :month-context-abbr       ["ينا" "فبر" "مار" "أبر" "ماي" "يون" "يول" "أغس" "سبت" "أكت" "نوف" "ديس"]
@@ -1255,8 +1259,7 @@ Supported fields:
      :eras                     ["西元前" "西元"]
      :month-standalone-abbr    ["1月" "2月" "3月" "4月" "5月" "6月" "7月" "8月" "9月" "10月" "11月" "12月"]
      :date-patterns            (:medium "yyyy/M/d" :long "yyyy'年'M'月'd'日'" :full "yyyy'年'M'月'd'日' EEEE")
-     :time-patterns            (:short "a h:mm" :medium "a hh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z")))
-  "Don't access directly, use `datetime-locale-field' instead.")
+     :time-patterns            (:short "a h:mm" :medium "a hh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z"))))
 
 
 (provide 'datetime)

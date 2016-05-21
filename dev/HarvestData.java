@@ -102,7 +102,8 @@ public class HarvestData
                 }
             }
 
-            map.put (":date-time-pattern-rule", String.format ("(%s . %s)", date_part_first ? "t" : "nil", quoteString (separator)));
+            if (!date_part_first || !" ".equals (separator))
+                map.put (":date-time-pattern-rule", String.format ("(%s . %s)", date_part_first ? "t" : "nil", quoteString (separator)));
         }
 
         // Remove duplicates.

@@ -4,7 +4,7 @@
 
 ;; Author:     Paul Pogonyshev <pogonyshev@gmail.com>
 ;; Maintainer: Paul Pogonyshev <pogonyshev@gmail.com>
-;; Version:    0.1
+;; Version:    0.2
 ;; Keywords:   lisp, i18n
 ;; Homepage:   https://github.com/doublep/datetime
 ;; Package-Requires: ((emacs "24.1"))
@@ -295,8 +295,10 @@ specified otherwise.
 
   :only-4-digit-years
 
-    Match only four consecutive digits as a year.  By default any
-    number of digits will be accepted.
+    Match only four consecutive digits as a year assuming the
+    pattern contains a 4-digit year placeholder.  By default any
+    number of digits will be accepted.  This can be seen as a
+    special case of :require-leading-zeros for year field only.
 
   :lax-whitespace
 
@@ -333,9 +335,14 @@ specified otherwise.
                (regexp  (pcase type
                           (`era (regexp-opt (append (datetime-locale-field locale :era) nil)))
                           ((or `year `year-for-week)
-                           (if (plist-get options :only-4-digit-years)
-                               (rx (= 4 (any "0-9")))
-                             (rx (1+ (any "0-9")))))
+                           (cond ((and (plist-get options :only-4-digit-years) (eq details 4))
+                                  (rx (= 4 (any "0-9"))))
+                                 ((or (memq details '(1 add-century-when-parsing)) (not (plist-get options :require-leading-zeros)))
+                                  (rx (1+ (any "0-9"))))
+                                 ((memq details '(2 always-two-digits))
+                                  (rx (any "0-9") (1+ (any "0-9"))))
+                                 (t
+                                  (format "[0-9]\\{%d\\}[0-9]+" (1- details)))))
                           (`month                12)
                           (`month-context-name
                            (regexp-opt (append (datetime-locale-field locale (if (eq details 'abbreviated)

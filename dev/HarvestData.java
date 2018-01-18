@@ -120,6 +120,8 @@ public class HarvestData
                     if (Objects.equals (entry.getValue (), data.get (parent).get (entry.getKey ())))
                         it.remove ();
                 }
+
+                data.get (locale).put (":parent", parent.toLanguageTag ());
             }
         }
 

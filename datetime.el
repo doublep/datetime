@@ -513,7 +513,7 @@ format \"xx\"), if it is t then also include “variants” in format
 Return value is a list of symbols; it can be modified freely."
   (let (locales)
     (dolist (data datetime--locale-data)
-      (when (or include-variants (<= (length (symbol-name (car data))) 2))
+      (when (or include-variants (null (plist-get (cdr data) :parent)))
         (push (car data) locales)))
     (nreverse locales)))
 
@@ -588,14 +588,15 @@ Supported fields:
   :am-pm"
   ;; Additionally `:date-patterns', `:time-patterns' and
   ;; `:date-time-pattern-rule' are supported for internal use.
-  (or (datetime--do-get-locale-field (cdr (assq locale datetime--locale-data)) field)
-      (let ((name (symbol-name locale)))
-        (when (> (length name) 3)
-          (datetime--do-get-locale-field (cdr (assq (intern (substring name 0 2)) datetime--locale-data)) field)))
-      (pcase field
-        (:decimal-separator ?.)
-        (:eras              datetime--english-eras)
-        (:am-pm             datetime--english-am-pm))))
+  (let ((data (cdr (assq locale datetime--locale-data))))
+    (or (datetime--do-get-locale-field data field)
+        (let ((parent (plist-get data :parent)))
+          (when parent
+            (datetime--do-get-locale-field (cdr (assq parent datetime--locale-data)) field)))
+        (pcase field
+          (:decimal-separator ?.)
+          (:eras              datetime--english-eras)
+          (:am-pm             datetime--english-am-pm)))))
 
 
 ;; Extracted from Java using `dev/HarvestData.java'.  All patterns are
@@ -629,15 +630,18 @@ Supported fields:
     (ar-JO
      :month-context-abbr       ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
      :month-context-names      ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"])
+     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"]
+     :parent                   ar)
     (ar-LB
      :month-context-abbr       ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
      :month-context-names      ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"])
+     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"]
+     :parent                   ar)
     (ar-SY
      :month-context-abbr       ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
      :month-context-names      ["كانون الثاني" "شباط" "آذار" "نيسان" "نواران" "حزير" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"])
+     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"]
+     :parent                   ar)
     (be
      :decimal-separator        ?,
      :eras                     ["да н.е." "н.е."]
@@ -700,8 +704,10 @@ Supported fields:
     (de-AT
      :month-context-abbr       ["Jän" "Feb" "Mär" "Apr" "Mai" "Jun" "Jul" "Aug" "Sep" "Okt" "Nov" "Dez"]
      :month-context-names      ["Jänner" "Februar" "März" "April" "Mai" "Juni" "Juli" "August" "September" "Oktober" "November" "Dezember"]
-     :date-patterns            (:short "dd.MM.yy" :medium "dd.MM.yyyy" :long "dd. MMMM yyyy" :full "EEEE, dd. MMMM yyyy"))
-    (de-CH)
+     :date-patterns            (:short "dd.MM.yy" :medium "dd.MM.yyyy" :long "dd. MMMM yyyy" :full "EEEE, dd. MMMM yyyy")
+     :parent                   de)
+    (de-CH
+     :parent                   de)
     (el
      :decimal-separator        ?,
      :month-context-abbr       ["Ιαν" "Φεβ" "Μαρ" "Απρ" "Μαϊ" "Ιουν" "Ιουλ" "Αυγ" "Σεπ" "Οκτ" "Νοε" "Δεκ"]
@@ -717,7 +723,8 @@ Supported fields:
      :eras                     ["π.Χ." "μ.Χ."]
      :month-context-names      ["Ιανουάριος" "Φεβρουάριος" "Μάρτιος" "Απρίλιος" "Μάιος" "Ιούνιος" "Ιούλιος" "Αύγουστος" "Σεπτέμβριος" "Οκτώβριος" "Νοέμβριος" "Δεκέμβριος"]
      :am-pm                    ["ΠΜ" "ΜΜ"]
-     :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMM yyyy" :long "dd MMMM yyyy" :full "EEEE, dd MMMM yyyy"))
+     :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMM yyyy" :long "dd MMMM yyyy" :full "EEEE, dd MMMM yyyy")
+     :parent                   el)
     (en
      :month-context-abbr       ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"]
      :month-context-names      ["January" "February" "March" "April" "May" "June" "July" "August" "September" "October" "November" "December"]
@@ -727,31 +734,41 @@ Supported fields:
      :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z"))
     (en-AU
      :date-patterns            (:short "d/MM/yy" :medium "dd/MM/yyyy" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :full "h:mm:ss a z"))
+     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :full "h:mm:ss a z")
+     :parent                   en)
     (en-CA
      :date-patterns            (:short "dd/MM/yy" :medium "d-MMM-yyyy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss z a" :full "h:mm:ss 'o''clock' a z"))
+     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss z a" :full "h:mm:ss 'o''clock' a z")
+     :parent                   en)
     (en-GB
      :date-patterns            (:short "dd/MM/yy" :medium "dd-MMM-yyyy" :long "dd MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm:ss 'o''clock' z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm:ss 'o''clock' z")
+     :parent                   en)
     (en-IE
      :date-patterns            (:short "dd/MM/yy" :medium "dd-MMM-yyyy" :long "dd MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm:ss 'o''clock' z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm:ss 'o''clock' z")
+     :parent                   en)
     (en-IN
-     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy"))
+     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy")
+     :parent                   en)
     (en-MT
      :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMM yyyy" :long "dd MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z")
+     :parent                   en)
     (en-NZ
      :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :full "h:mm:ss a z"))
+     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :full "h:mm:ss a z")
+     :parent                   en)
     (en-PH
-     :date-patterns            (:short "M/d/yy" :medium "MM d, yy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy"))
+     :date-patterns            (:short "M/d/yy" :medium "MM d, yy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy")
+     :parent                   en)
     (en-SG
-     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy"))
+     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy")
+     :parent                   en)
     (en-ZA
      :date-patterns            (:short "yyyy/MM/dd" :medium "dd MMM yyyy" :long "dd MMMM yyyy" :full "EEEE dd MMMM yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a"))
+     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a")
+     :parent                   en)
     (es
      :decimal-separator        ?,
      :eras                     ["antes de Cristo" "anno Dómini"]
@@ -763,63 +780,82 @@ Supported fields:
      :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH'H'mm'' z"))
     (es-AR
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "H:mm:ss z" :full "HH'h'''mm z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "H:mm:ss z" :full "HH'h'''mm z")
+     :parent                   es)
     (es-BO
      :date-patterns            (:short "dd-MM-yy" :medium "dd-MM-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-CL
      :date-patterns            (:short "dd-MM-yy" :medium "dd-MM-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH:mm:ss zzzz"))
+     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH:mm:ss zzzz")
+     :parent                   es)
     (es-CO
      :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-CR
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-DO
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-EC
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH:mm:ss zzzz"))
+     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH:mm:ss zzzz")
+     :parent                   es)
     (es-GT
      :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-HN
      :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "dd' de 'MMMM' de 'yyyy" :full "EEEE dd' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-MX
      :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-NI
      :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "dd' de 'MMMM' de 'yyyy" :full "EEEE dd' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-PA
      :date-patterns            (:short "MM/dd/yy" :medium "MM/dd/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-PE
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-PR
      :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-PY
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-SV
      :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-US
      :eras                     ["a.C." "d.C."]
      :am-pm                    ["a.m." "p.m."]
      :date-patterns            (:short "M/d/yy" :medium "MMM d, yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z"))
+     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z")
+     :parent                   es)
     (es-UY
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (es-VE
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z"))
+     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
+     :parent                   es)
     (et
      :decimal-separator        ?,
      :eras                     ["e.m.a." "m.a.j."]
@@ -852,13 +888,16 @@ Supported fields:
      :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH' h 'mm z"))
     (fr-BE
      :date-patterns            (:short "d/MM/yy" :medium "dd-MMM-yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H' h 'mm' min 'ss' s 'z"))
+     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H' h 'mm' min 'ss' s 'z")
+     :parent                   fr)
     (fr-CA
      :date-patterns            (:short "yy-MM-dd" :medium "yyyy-MM-dd" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "H' h 'mm z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "H' h 'mm z")
+     :parent                   fr)
     (fr-CH
      :date-patterns            (:short "dd.MM.yy" :medium "d MMM yyyy" :long "d. MMMM yyyy" :full "EEEE, d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH.mm.' h' z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH.mm.' h' z")
+     :parent                   fr)
     (ga
      :eras                     ["RC" "AD"]
      :month-context-abbr       ["Ean" "Feabh" "Márta" "Aib" "Beal" "Meith" "Iúil" "Lún" "MFómh" "DFómh" "Samh" "Noll"]
@@ -869,7 +908,8 @@ Supported fields:
      :date-patterns            (:short "yy/MM/dd" :medium "yyyy MMM d" :long "yyyy MMMM d" :full "EEEE, yyyy MMMM dd")
      :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
     (ga-IE
-     :date-patterns            (:short "dd/MM/yyyy" :medium "d MMM yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy"))
+     :date-patterns            (:short "dd/MM/yyyy" :medium "d MMM yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
+     :parent                   ga)
     (he
      :eras                     ["לסה"נ" "לפסה"נ"]
      :month-context-abbr       ["ינו" "פבר" "מרץ" "אפר" "מאי" "יונ" "יול" "אוג" "ספט" "אוק" "נוב" "דצמ"]
@@ -894,7 +934,8 @@ Supported fields:
      :weekday-context-abbr     ["सोम" "मंगल" "बुध" "गुरु" "शुक्र" "शनि" "रवि"]
      :weekday-context-names    ["सोमवार" "मंगलवार" "बुधवार" "गुरुवार" "शुक्रवार" "शनिवार" "रविवार"]
      :am-pm                    ["पूर्वाह्न" "अपराह्न"]
-     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy"))
+     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy")
+     :parent                   hi)
     (hr
      :decimal-separator        ?,
      :eras                     ["Prije Krista" "Poslije Krista"]
@@ -907,7 +948,8 @@ Supported fields:
      :date-patterns            (:medium "yyyy.MM.dd" :long "yyyy. MMMM dd")
      :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
     (hr-HR
-     :date-patterns            (:short "dd.MM.yy." :medium "dd.MM.yyyy." :long "yyyy. MMMM dd"))
+     :date-patterns            (:short "dd.MM.yy." :medium "dd.MM.yyyy." :long "yyyy. MMMM dd")
+     :parent                   hr)
     (hu
      :decimal-separator        ?,
      :eras                     ["i.e." "i.u."]
@@ -929,7 +971,8 @@ Supported fields:
      :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
     (id-ID
      :date-patterns            (:short "dd/MM/yy" :medium "dd MMM yy" :long "dd MMMM yyyy" :full "EEEE dd MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss"))
+     :time-patterns            (:short "H:mm" :medium "H:mm:ss")
+     :parent                   id)
     (is
      :decimal-separator        ?,
      :month-context-abbr       ["jan." "feb." "mar." "apr." "maí" "jún." "júl." "ágú." "sep." "okt." "nóv." "des."]
@@ -950,7 +993,8 @@ Supported fields:
      :time-patterns            (:short "H.mm" :medium "H.mm.ss" :long "H.mm.ss z"))
     (it-CH
      :date-patterns            (:short "dd.MM.yy" :medium "d-MMM-yyyy" :long "d. MMMM yyyy" :full "EEEE, d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "H.mm' h' z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "H.mm' h' z")
+     :parent                   it)
     (ja
      :eras                     ["紀元前" "西暦"]
      :month-context-abbr       ["1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12"]
@@ -961,7 +1005,8 @@ Supported fields:
      :date-patterns            (:short "yy/MM/dd" :medium "yyyy/MM/dd" :full "yyyy'年'M'月'd'日'")
      :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H'時'mm'分'ss'秒' z"))
     (ja-JP-u-ca-japanese-x-lvariant-JP
-     :date-patterns            (:medium "Gy.MM.dd" :full "GGGGyyyy'年'M'月'd'日'"))
+     :date-patterns            (:medium "Gy.MM.dd" :full "GGGGyyyy'年'M'月'd'日'")
+     :parent                   ja)
     (ko
      :eras                     ["기원전" "서기"]
      :month-context-abbr       ["1월" "2월" "3월" "4월" "5월" "6월" "7월" "8월" "9월" "10월" "11월" "12월"]
@@ -1011,7 +1056,8 @@ Supported fields:
      :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
     (ms-MY
      :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMMM yyyy" :full "EEEE dd MMM yyyy")
-     :time-patterns            (:short "h:mm" :medium "h:mm:ss a" :long "h:mm:ss a z"))
+     :time-patterns            (:short "h:mm" :medium "h:mm:ss a" :long "h:mm:ss a z")
+     :parent                   ms)
     (mt
      :eras                     ["QK" "WK"]
      :month-context-abbr       ["Jan" "Fra" "Mar" "Apr" "Mej" "Ġun" "Lul" "Aww" "Set" "Ott" "Nov" "Diċ"]
@@ -1032,10 +1078,12 @@ Supported fields:
      :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H:mm:ss' uur' z"))
     (nl-BE
      :date-patterns            (:short "d/MM/yy" :medium "d-MMM-yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H.mm' u. 'z"))
+     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H.mm' u. 'z")
+     :parent                   nl)
     (nn-NO
      :weekday-context-abbr     ["må" "ty" "on" "to" "fr" "lau" "su"]
-     :weekday-context-names    ["måndag" "tysdag" "onsdag" "torsdag" "fredag" "laurdag" "sundag"])
+     :weekday-context-names    ["måndag" "tysdag" "onsdag" "torsdag" "fredag" "laurdag" "sundag"]
+     :parent                   no)
     (no
      :decimal-separator        ?,
      :month-context-abbr       ["jan" "feb" "mar" "apr" "mai" "jun" "jul" "aug" "sep" "okt" "nov" "des"]
@@ -1055,7 +1103,8 @@ Supported fields:
      :date-patterns            (:short "yy-MM-dd" :medium "yyyy-MM-dd" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
      :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
     (pl-PL
-     :date-patterns            (:short "dd.MM.yy" :medium "yyyy-MM-dd" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy"))
+     :date-patterns            (:short "dd.MM.yy" :medium "yyyy-MM-dd" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
+     :parent                   pl)
     (pt
      :decimal-separator        ?,
      :eras                     ["a.C." "d.C."]
@@ -1067,7 +1116,8 @@ Supported fields:
      :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH'H'mm'm' z"))
     (pt-BR
      :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE, d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "H'h'm'min's's' z" :full "HH'h'mm'min'ss's' z"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "H'h'm'min's's' z" :full "HH'h'mm'min'ss's' z")
+     :parent                   pt)
     (ro
      :decimal-separator        ?,
      :eras                     ["d.C." "î.d.C."]
@@ -1133,7 +1183,8 @@ Supported fields:
      :weekday-context-abbr     ["пон" "уто" "сри" "чет" "пет" "суб" "нед"]
      :weekday-context-names    ["понедељак" "уторак" "сриједа" "четвртак" "петак" "субота" "недеља"]
      :date-patterns            (:short "yy-MM-dd" :medium "yyyy-MM-dd" :long "dd. MMMM yyyy." :full "EEEE, dd. MMMM yyyy.")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH.mm.ss z" :full "HH 'часова', mm 'минута', ss' секунди'"))
+     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH.mm.ss z" :full "HH 'часова', mm 'минута', ss' секунди'")
+     :parent                   sr)
     (sr-Latn
      :eras                     ["p. n. e." "n. e"]
      :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
@@ -1141,7 +1192,8 @@ Supported fields:
      :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
      :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
      :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "dd. MMMM y." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz"))
+     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
+     :parent                   sr)
     (sr-Latn-BA
      :eras                     ["p. n. e." "n. e"]
      :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
@@ -1149,7 +1201,8 @@ Supported fields:
      :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
      :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
      :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "dd. MMMM y." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz"))
+     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
+     :parent                   sr)
     (sr-Latn-ME
      :eras                     ["p. n. e." "n. e"]
      :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
@@ -1157,7 +1210,8 @@ Supported fields:
      :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
      :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
      :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "d.MM.yyyy." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz"))
+     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
+     :parent                   sr)
     (sr-Latn-RS
      :eras                     ["p. n. e." "n. e"]
      :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
@@ -1165,7 +1219,8 @@ Supported fields:
      :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
      :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
      :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "dd. MMMM y." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz"))
+     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
+     :parent                   sr)
     (sv
      :decimal-separator        ?,
      :eras                     ["före Kristus" "efter Kristus"]
@@ -1238,16 +1293,19 @@ Supported fields:
      :month-context-abbr       ["1月" "2月" "3月" "4月" "5月" "6月" "7月" "8月" "9月" "10月" "11月" "12月"]
      :weekday-context-abbr     ["一" "二" "三" "四" "五" "六" "日"]
      :date-patterns            (:short "yy'年'M'月'd'日'" :medium "yyyy'年'M'月'd'日'" :long "yyyy'年'MM'月'dd'日' EEEE")
-     :time-patterns            (:short "ah:mm" :medium "ahh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z"))
+     :time-patterns            (:short "ah:mm" :medium "ahh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z")
+     :parent                   zh)
     (zh-SG
      :weekday-context-abbr     ["周一" "周二" "周三" "周四" "周五" "周六" "周日"]
      :date-patterns            (:short "dd/MM/yy" :medium "dd-MMM-yy" :long "dd MMM yyyy" :full "dd MMMM yyyy")
-     :time-patterns            (:medium "a hh:mm" :long "a hh:mm:ss"))
+     :time-patterns            (:medium "a hh:mm" :long "a hh:mm:ss")
+     :parent                   zh)
     (zh-TW
      :eras                     ["西元前" "西元"]
      :month-standalone-abbr    ["1月" "2月" "3月" "4月" "5月" "6月" "7月" "8月" "9月" "10月" "11月" "12月"]
      :date-patterns            (:medium "yyyy/M/d" :long "yyyy'年'M'月'd'日'" :full "yyyy'年'M'月'd'日' EEEE")
-     :time-patterns            (:short "a h:mm" :medium "a hh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z"))))
+     :time-patterns            (:short "a h:mm" :medium "a hh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z")
+     :parent                   zh)))
 
 
 (provide 'datetime)

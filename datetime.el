@@ -4,7 +4,7 @@
 
 ;; Author:     Paul Pogonyshev <pogonyshev@gmail.com>
 ;; Maintainer: Paul Pogonyshev <pogonyshev@gmail.com>
-;; Version:    0.3.1
+;; Version:    0.3.2
 ;; Keywords:   lisp, i18n
 ;; Homepage:   https://github.com/doublep/datetime
 ;; Package-Requires: ((emacs "24.1"))
@@ -566,13 +566,10 @@ separated by a space, for a few locales it is different."
   (or (plist-get locale-data field)
       ;; See `datetime--locale-data' for description of fallbacks.
       (pcase field
-        (:decimal-separator        ?.)
-        (:eras                     datetime--english-eras)
         (:month-standalone-abbr    (plist-get locale-data :month-context-abbr))
         (:month-standalone-names   (plist-get locale-data :month-context-names))
         (:weekday-standalone-abbr  (plist-get locale-data :weekday-context-abbr))
-        (:weekday-standalone-names (plist-get locale-data :weekday-context-names))
-        (:am-pm                    datetime--english-am-pm))))
+        (:weekday-standalone-names (plist-get locale-data :weekday-context-names)))))
 
 (defun datetime-locale-field (locale field)
   "Get a FIELD of data for the LOCALE.
@@ -594,7 +591,11 @@ Supported fields:
   (or (datetime--do-get-locale-field (cdr (assq locale datetime--locale-data)) field)
       (let ((name (symbol-name locale)))
         (when (> (length name) 3)
-          (datetime--do-get-locale-field (cdr (assq (intern (substring name 0 2)) datetime--locale-data)) field)))))
+          (datetime--do-get-locale-field (cdr (assq (intern (substring name 0 2)) datetime--locale-data)) field)))
+      (pcase field
+        (:decimal-separator ?.)
+        (:eras              datetime--english-eras)
+        (:am-pm             datetime--english-am-pm))))
 
 
 ;; Extracted from Java using `dev/HarvestData.java'.  All patterns are

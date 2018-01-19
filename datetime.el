@@ -184,6 +184,7 @@
                  (?D (push (cons 'day-in-year      num-repetitions) parts))
                  (?d (push (cons 'day-in-month     num-repetitions) parts))
                  (?F (push (cons 'weekday-in-month num-repetitions) parts))
+                 (?u (push (cons 'weekday          num-repetitions) parts))
                  (?H (push (cons 'hour-0-23        num-repetitions) parts))
                  (?k (push (cons 'hour-1-24        num-repetitions) parts))
                  (?K (push (cons 'hour-am-pm-0-11  num-repetitions) parts))

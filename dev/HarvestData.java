@@ -125,8 +125,10 @@ public class HarvestData
             }
         }
 
+        System.out.println ("(");
         for (Map.Entry <Locale, Map <String, String>> entry : data.entrySet ())
-            System.out.println (toLispPlist (entry.getKey ().toLanguageTag (), entry.getValue (), false, 25));
+            System.out.println (toLispPlist (entry.getKey ().toLanguageTag (), entry.getValue (), false));
+        System.out.println (")");
     }
 
     protected static List <String> getNames (Locale locale, int field, int style, int from, int to, int extra)
@@ -164,18 +166,17 @@ public class HarvestData
 
     protected static String toLispPlist (Map <String, String> properties, boolean quote_value_strings)
     {
-        return toLispPlist (null, properties, quote_value_strings, 0);
+        return toLispPlist (null, properties, quote_value_strings);
     }
 
-    protected static String toLispPlist (String associate_to, Map <String, String> properties, boolean quote_value_strings, int align_to_width)
+    protected static String toLispPlist (String associate_to, Map <String, String> properties, boolean quote_value_strings)
     {
         return String.format ("(%s%s%s)",
                               associate_to != null ? associate_to : "",
-                              associate_to != null && !properties.isEmpty () ? (align_to_width > 0 ? "\n " : " ") : "",
-                              properties.entrySet ().stream ().map ((entry) -> String.format (align_to_width > 0 ? String.format ("%%-%ds %%s", align_to_width) : "%s %s",
-                                                                                              entry.getKey (),
-                                                                                              quote_value_strings ? quoteString (entry.getValue ()) : entry.getValue ()))
-                                                              .collect (Collectors.joining (align_to_width > 0 ? "\n " : " ")));
+                              associate_to != null && !properties.isEmpty () ? " " : "",
+                              (properties.entrySet ().stream ()
+                               .map ((entry) -> String.format ("%s %s", entry.getKey (), quote_value_strings ? quoteString (entry.getValue ()) : entry.getValue ()))
+                               .collect (Collectors.joining (" "))));
     }
 
     protected static String toLispVector (List <String> strings)

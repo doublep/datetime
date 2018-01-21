@@ -7,7 +7,7 @@
 ;; Version:    0.3.2
 ;; Keywords:   lisp, i18n
 ;; Homepage:   https://github.com/doublep/datetime
-;; Package-Requires: ((emacs "24.1"))
+;; Package-Requires: ((emacs "24.1") (extmap "1.0"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -89,15 +89,36 @@
 ;;   timezone (?) -- currently not supported further than pattern parsing
 
 
+(require 'extmap)
+
+
 (if (fboundp 'define-error)
     (define-error 'datetime-unsupported-timezone "Timezones are currently not supported")
   (put 'datetime-unsupported-timezone 'error-conditions '(datetime-unsupported-timezone error))
   (put 'datetime-unsupported-timezone 'error-message "Timezones are currently not supported"))
 
 
-;; Set at the end of this file because the initializer is huge.
-(defvar datetime--locale-data nil
-  "Don't access directly, use `datetime-locale-field' instead.")
+(defconst datetime--directory (file-name-directory (or load-file-name (buffer-file-name))))
+
+;; Extracted from Java using `dev/HarvestData.java'.  All patterns are
+;; obviously of `java' type.
+;;
+;; There are many fallbacks involved to reduce size:
+;;   - for locale XX-YY value for any property defaults to that of
+;;     locale XX;
+;;   - `:decimal-separator' defaults to dot;
+;;   - `:eras' and `:am-pm' default to English version;
+;;   - month/dayweek standalone abbreviations or names default to
+;;     the corresponding context-aware property;
+;;   - date-time patterns are not stored, instead they are built from
+;;     date and time parts for that locale; corresponding field is a
+;;     cons with car determining what should be in the beginning (t
+;;     for date, nil for time), and cdr being the separator string;
+;;     the cons defaults to (t . " ");
+;;   - all patterns have the following fallbacks: `:short' defaults to
+;;     `:medium', `:long' defaults to `:medium', `:full' defaults to
+;;     `:long'.
+(defvar datetime--locale-extmap (extmap-init (expand-file-name "locale-data.extmap" datetime--directory)))
 
 (defvar datetime--pattern-parsers '((parsed . (lambda (pattern options) pattern))
                                     (java   . datetime--parse-java-pattern)))
@@ -511,12 +532,13 @@ If INCLUDE-VARIANTS is nil, only include “base” locales (in
 format \"xx\"), if it is t then also include “variants” in format
 \"xx-YY\".
 
-Return value is a list of symbols; it can be modified freely."
-  (let (locales)
-    (dolist (data datetime--locale-data)
-      (when (or include-variants (null (plist-get (cdr data) :parent)))
-        (push (car data) locales)))
-    (nreverse locales)))
+Return value is a list of symbols in no particular order; it can
+be modified freely."
+  (if include-variants
+      (extmap-keys datetime--locale-extmap)
+    (let (locales)
+      (extmap-mapc datetime--locale-extmap (lambda (locale data) (unless (plist-get (cdr data) :parent) (push locale locales))))
+      locales)))
 
 
 (defsubst datetime--do-get-locale-pattern (patterns variant)
@@ -565,7 +587,7 @@ separated by a space, for a few locales it is different."
 
 (defsubst datetime--do-get-locale-field (locale-data field)
   (or (plist-get locale-data field)
-      ;; See `datetime--locale-data' for description of fallbacks.
+      ;; See `datetime--locale-extmap' for description of fallbacks.
       (pcase field
         (:month-standalone-abbr    (plist-get locale-data :month-context-abbr))
         (:month-standalone-names   (plist-get locale-data :month-context-names))
@@ -589,724 +611,15 @@ Supported fields:
   :am-pm"
   ;; Additionally `:date-patterns', `:time-patterns' and
   ;; `:date-time-pattern-rule' are supported for internal use.
-  (let ((data (cdr (assq locale datetime--locale-data))))
+  (let ((data (extmap-get datetime--locale-extmap locale t)))
     (or (datetime--do-get-locale-field data field)
         (let ((parent (plist-get data :parent)))
           (when parent
-            (datetime--do-get-locale-field (cdr (assq parent datetime--locale-data)) field)))
+            (datetime--do-get-locale-field (extmap-get datetime--locale-extmap parent) field)))
         (pcase field
           (:decimal-separator ?.)
           (:eras              datetime--english-eras)
           (:am-pm             datetime--english-am-pm)))))
-
-
-;; Extracted from Java using `dev/HarvestData.java'.  All patterns are
-;; obviously of java type.
-;;
-;; There are many fallbacks involved to reduce size of this alist:
-;;   - for locale XX-YY value for any property defaults to that of
-;;     locale XX;
-;;   - `:decimal-separator' defaults to dot;
-;;   - `:eras' and `:am-pm' default to English version;
-;;   - month/dayweek standalone abbreviations or names default to
-;;     the corresponding context-aware property;
-;;   - date-time patterns are not stored, instead they are built from
-;;     date and time parts for that locale; corresponding field is a
-;;     cons with car determining what should be in the beginning (t
-;;     for date, nil for time), and cdr being the separator string;
-;;     the cons defaults to (t . " ");
-;;   - all patterns have the following fallbacks: `:short' defaults to
-;;     `:medium', `:long' defaults to `:medium', `:full' defaults to
-;;     `:long'.
-(setq datetime--locale-data
-  '((ar
-     :eras                     ["ق.م" "م"]
-     :month-context-abbr       ["ينا" "فبر" "مار" "أبر" "ماي" "يون" "يول" "أغس" "سبت" "أكت" "نوف" "ديس"]
-     :month-context-names      ["يناير" "فبراير" "مارس" "أبريل" "مايو" "يونيو" "يوليو" "أغسطس" "سبتمبر" "أكتوبر" "نوفمبر" "ديسمبر"]
-     :weekday-context-abbr     ["ن" "ث" "ر" "خ" "ج" "س" "ح"]
-     :weekday-context-names    ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"]
-     :am-pm                    ["ص" "م"]
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "dd MMMM, yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "z hh:mm:ss a"))
-    (ar-JO
-     :month-context-abbr       ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :month-context-names      ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"]
-     :parent                   ar)
-    (ar-LB
-     :month-context-abbr       ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :month-context-names      ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"]
-     :parent                   ar)
-    (ar-SY
-     :month-context-abbr       ["كانون الثاني" "شباط" "آذار" "نيسان" "نوار" "حزيران" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :month-context-names      ["كانون الثاني" "شباط" "آذار" "نيسان" "نواران" "حزير" "تموز" "آب" "أيلول" "تشرين الأول" "تشرين الثاني" "كانون الأول"]
-     :weekday-context-abbr     ["الاثنين" "الثلاثاء" "الأربعاء" "الخميس" "الجمعة" "السبت" "الأحد"]
-     :parent                   ar)
-    (be
-     :decimal-separator        ?,
-     :eras                     ["да н.е." "н.е."]
-     :month-context-abbr       ["стд" "лют" "скв" "крс" "май" "чрв" "лпн" "жнв" "врс" "кст" "ліс" "снж"]
-     :month-context-names      ["студзеня" "лютага" "сакавіка" "красавіка" "мая" "чрвеня" "ліпеня" "жніўня" "верасня" "кастрычніка" "лістапада" "снежня"]
-     :weekday-context-abbr     ["пн" "ат" "ср" "чц" "пт" "сб" "нд"]
-     :weekday-context-names    ["панядзелак" "аўторак" "серада" "чацвер" "пятніца" "субота" "нядзеля"]
-     :date-patterns            (:short "d.M.yy" :medium "d.M.yyyy" :long "EEEE, d, MMMM yyyy")
-     :time-patterns            (:short "H.mm" :medium "H.mm.ss" :long "H.mm.ss z"))
-    (bg
-     :decimal-separator        ?,
-     :eras                     ["пр.н.е." "н.е."]
-     :month-context-abbr       ["I" "II" "III" "IV" "V" "VI" "VII" "VIII" "IX" "X" "XI" "XII"]
-     :month-context-names      ["Януари" "Февруари" "Март" "Април" "Май" "Юни" "Юли" "Август" "Септември" "Октомври" "Ноември" "Декември"]
-     :weekday-context-abbr     ["Пн" "Вт" "Ср" "Чт" "Пт" "Сб" "Нд"]
-     :weekday-context-names    ["Понеделник" "Вторник" "Сряда" "Четвъртък" "Петък" "Събота" "Неделя"]
-     :date-patterns            (:short "dd.MM.yy" :medium "dd.MM.yyyy" :long "dd MMMM y" :full "dd MMMM y, EEEE")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm:ss zzzz"))
-    (ca
-     :decimal-separator        ?,
-     :month-context-abbr       ["de gen." "de febr." "de març" "d’abr." "de maig" "de juny" "de jul." "d’ag." "de set." "d’oct." "de nov." "de des."]
-     :month-context-names      ["de gener" "de febrer" "de març" "d’abril" "de maig" "de juny" "de juliol" "d’agost" "de setembre" "d’octubre" "de novembre" "de desembre"]
-     :weekday-context-abbr     ["dl." "dt." "dc." "dj." "dv." "ds." "dg."]
-     :weekday-context-names    ["dilluns" "dimarts" "dimecres" "dijous" "divendres" "dissabte" "diumenge"]
-     :month-standalone-abbr    ["gen." "feb." "març" "abr." "maig" "juny" "jul." "ag." "set." "oct." "nov." "des."]
-     :month-standalone-names   ["gener" "febrer" "març" "abril" "maig" "juny" "juliol" "agost" "setembre" "octubre" "novembre" "desembre"]
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' / 'MMMM' / 'yyyy" :full "EEEE, d' / 'MMMM' / 'yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (cs
-     :decimal-separator        ?,
-     :eras                     ["př.Kr." "po Kr."]
-     :month-context-abbr       ["Led" "Úno" "Bře" "Dub" "Kvě" "Čer" "Čvc" "Srp" "Zář" "Říj" "Lis" "Pro"]
-     :month-context-names      ["ledna" "února" "března" "dubna" "května" "června" "července" "srpna" "září" "října" "listopadu" "prosince"]
-     :weekday-context-abbr     ["Po" "Út" "St" "Čt" "Pá" "So" "Ne"]
-     :weekday-context-names    ["Pondělí" "Úterý" "Středa" "Čtvrtek" "Pátek" "Sobota" "Neděle"]
-     :month-standalone-abbr    ["I" "II" "III" "IV" "V" "VI" "VII" "VIII" "IX" "X" "XI" "XII"]
-     :month-standalone-names   ["leden" "únor" "březen" "duben" "květen" "červen" "červenec" "srpen" "září" "říjen" "listopad" "prosinec"]
-     :am-pm                    ["dop." "odp."]
-     :date-patterns            (:short "d.M.yy" :medium "d.M.yyyy" :long "d. MMMM yyyy" :full "EEEE, d. MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z"))
-    (da
-     :decimal-separator        ?,
-     :eras                     ["f.Kr." "e.Kr."]
-     :month-context-abbr       ["jan." "feb." "mar." "apr." "maj" "jun." "jul." "aug." "sep." "okt." "nov." "dec."]
-     :month-context-names      ["januar" "februar" "marts" "april" "maj" "juni" "juli" "august" "september" "oktober" "november" "december"]
-     :weekday-context-abbr     ["ma" "ti" "on" "to" "fr" "lø" "sø"]
-     :weekday-context-names    ["mandag" "tirsdag" "onsdag" "torsdag" "fredag" "lørdag" "søndag"]
-     :month-standalone-abbr    ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "aug" "sep" "okt" "nov" "dec"]
-     :date-patterns            (:short "dd-MM-yy" :medium "dd-MM-yyyy" :long "d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (de
-     :decimal-separator        ?,
-     :eras                     ["v. Chr." "n. Chr."]
-     :month-context-abbr       ["Jan" "Feb" "Mär" "Apr" "Mai" "Jun" "Jul" "Aug" "Sep" "Okt" "Nov" "Dez"]
-     :month-context-names      ["Januar" "Februar" "März" "April" "Mai" "Juni" "Juli" "August" "September" "Oktober" "November" "Dezember"]
-     :weekday-context-abbr     ["Mo" "Di" "Mi" "Do" "Fr" "Sa" "So"]
-     :weekday-context-names    ["Montag" "Dienstag" "Mittwoch" "Donnerstag" "Freitag" "Samstag" "Sonntag"]
-     :date-patterns            (:short "dd.MM.yy" :medium "dd.MM.yyyy" :long "d. MMMM yyyy" :full "EEEE, d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm' Uhr 'z"))
-    (de-AT
-     :month-context-abbr       ["Jän" "Feb" "Mär" "Apr" "Mai" "Jun" "Jul" "Aug" "Sep" "Okt" "Nov" "Dez"]
-     :month-context-names      ["Jänner" "Februar" "März" "April" "Mai" "Juni" "Juli" "August" "September" "Oktober" "November" "Dezember"]
-     :date-patterns            (:short "dd.MM.yy" :medium "dd.MM.yyyy" :long "dd. MMMM yyyy" :full "EEEE, dd. MMMM yyyy")
-     :parent                   de)
-    (de-CH
-     :parent                   de)
-    (el
-     :decimal-separator        ?,
-     :month-context-abbr       ["Ιαν" "Φεβ" "Μαρ" "Απρ" "Μαϊ" "Ιουν" "Ιουλ" "Αυγ" "Σεπ" "Οκτ" "Νοε" "Δεκ"]
-     :month-context-names      ["Ιανουαρίου" "Φεβρουαρίου" "Μαρτίου" "Απριλίου" "Μαΐου" "Ιουνίου" "Ιουλίου" "Αυγούστου" "Σεπτεμβρίου" "Οκτωβρίου" "Νοεμβρίου" "Δεκεμβρίου"]
-     :weekday-context-abbr     ["Δευ" "Τρι" "Τετ" "Πεμ" "Παρ" "Σαβ" "Κυρ"]
-     :weekday-context-names    ["Δευτέρα" "Τρίτη" "Τετάρτη" "Πέμπτη" "Παρασκευή" "Σάββατο" "Κυριακή"]
-     :month-standalone-abbr    ["Ιαν" "Φεβ" "Μάρ" "Απρ" "Μάι" "Ιούν" "Ιούλ" "Αυγ" "Σεπ" "Οκτ" "Νοέ" "Δεκ"]
-     :month-standalone-names   ["Ιανουάριος" "Φεβρουάριος" "Μάρτιος" "Απρίλιος" "Μάϊος" "Ιούνιος" "Ιούλιος" "Αύγουστος" "Σεπτέμβριος" "Οκτώβριος" "Νοέμβριος" "Δεκέμβριος"]
-     :am-pm                    ["πμ" "μμ"]
-     :date-patterns            (:short "d/M/yyyy" :medium "d MMM yyyy" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z"))
-    (el-CY
-     :eras                     ["π.Χ." "μ.Χ."]
-     :month-context-names      ["Ιανουάριος" "Φεβρουάριος" "Μάρτιος" "Απρίλιος" "Μάιος" "Ιούνιος" "Ιούλιος" "Αύγουστος" "Σεπτέμβριος" "Οκτώβριος" "Νοέμβριος" "Δεκέμβριος"]
-     :am-pm                    ["ΠΜ" "ΜΜ"]
-     :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMM yyyy" :long "dd MMMM yyyy" :full "EEEE, dd MMMM yyyy")
-     :parent                   el)
-    (en
-     :month-context-abbr       ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"]
-     :month-context-names      ["January" "February" "March" "April" "May" "June" "July" "August" "September" "October" "November" "December"]
-     :weekday-context-abbr     ["Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"]
-     :weekday-context-names    ["Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday" "Sunday"]
-     :date-patterns            (:short "M/d/yy" :medium "MMM d, yyyy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z"))
-    (en-AU
-     :date-patterns            (:short "d/MM/yy" :medium "dd/MM/yyyy" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :full "h:mm:ss a z")
-     :parent                   en)
-    (en-CA
-     :date-patterns            (:short "dd/MM/yy" :medium "d-MMM-yyyy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss z a" :full "h:mm:ss 'o''clock' a z")
-     :parent                   en)
-    (en-GB
-     :date-patterns            (:short "dd/MM/yy" :medium "dd-MMM-yyyy" :long "dd MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm:ss 'o''clock' z")
-     :parent                   en)
-    (en-IE
-     :date-patterns            (:short "dd/MM/yy" :medium "dd-MMM-yyyy" :long "dd MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH:mm:ss 'o''clock' z")
-     :parent                   en)
-    (en-IN
-     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy")
-     :parent                   en)
-    (en-MT
-     :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMM yyyy" :long "dd MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z")
-     :parent                   en)
-    (en-NZ
-     :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :full "h:mm:ss a z")
-     :parent                   en)
-    (en-PH
-     :date-patterns            (:short "M/d/yy" :medium "MM d, yy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy")
-     :parent                   en)
-    (en-SG
-     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy")
-     :parent                   en)
-    (en-ZA
-     :date-patterns            (:short "yyyy/MM/dd" :medium "dd MMM yyyy" :long "dd MMMM yyyy" :full "EEEE dd MMMM yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a")
-     :parent                   en)
-    (es
-     :decimal-separator        ?,
-     :eras                     ["antes de Cristo" "anno Dómini"]
-     :month-context-abbr       ["ene" "feb" "mar" "abr" "may" "jun" "jul" "ago" "sep" "oct" "nov" "dic"]
-     :month-context-names      ["enero" "febrero" "marzo" "abril" "mayo" "junio" "julio" "agosto" "septiembre" "octubre" "noviembre" "diciembre"]
-     :weekday-context-abbr     ["lun" "mar" "mié" "jue" "vie" "sáb" "dom"]
-     :weekday-context-names    ["lunes" "martes" "miércoles" "jueves" "viernes" "sábado" "domingo"]
-     :date-patterns            (:short "d/MM/yy" :medium "dd-MMM-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH'H'mm'' z"))
-    (es-AR
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "H:mm:ss z" :full "HH'h'''mm z")
-     :parent                   es)
-    (es-BO
-     :date-patterns            (:short "dd-MM-yy" :medium "dd-MM-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-CL
-     :date-patterns            (:short "dd-MM-yy" :medium "dd-MM-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH:mm:ss zzzz")
-     :parent                   es)
-    (es-CO
-     :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-CR
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-DO
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-EC
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH:mm:ss zzzz")
-     :parent                   es)
-    (es-GT
-     :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-HN
-     :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "dd' de 'MMMM' de 'yyyy" :full "EEEE dd' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-MX
-     :date-patterns            (:short "d/MM/yy" :medium "d/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-NI
-     :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "dd' de 'MMMM' de 'yyyy" :full "EEEE dd' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-PA
-     :date-patterns            (:short "MM/dd/yy" :medium "MM/dd/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-PE
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-PR
-     :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-PY
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-SV
-     :date-patterns            (:short "MM-dd-yy" :medium "MM-dd-yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-US
-     :eras                     ["a.C." "d.C."]
-     :am-pm                    ["a.m." "p.m."]
-     :date-patterns            (:short "M/d/yy" :medium "MMM d, yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z")
-     :parent                   es)
-    (es-UY
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (es-VE
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "hh:mm a" :medium "hh:mm:ss a" :long "hh:mm:ss a z")
-     :parent                   es)
-    (et
-     :decimal-separator        ?,
-     :eras                     ["e.m.a." "m.a.j."]
-     :month-context-abbr       ["jaan" "veebr" "märts" "apr" "mai" "juuni" "juuli" "aug" "sept" "okt" "nov" "dets"]
-     :month-context-names      ["jaanuar" "veebruar" "märts" "aprill" "mai" "juuni" "juuli" "august" "september" "oktoober" "november" "detsember"]
-     :weekday-context-abbr     ["E" "T" "K" "N" "R" "L" "P"]
-     :weekday-context-names    ["esmaspäev" "teisipäev" "kolmapäev" "neljapäev" "reede" "laupäev" "pühapäev"]
-     :date-patterns            (:short "d.MM.yy" :medium "d.MM.yyyy" :long "EEEE, d. MMMM yyyy. 'a'" :full "EEEE, d. MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z"))
-    (fi
-     :decimal-separator        ?,
-     :eras                     ["eKr." "jKr."]
-     :month-context-abbr       ["tammikuuta" "helmikuuta" "maaliskuuta" "huhtikuuta" "toukokuuta" "kesäkuuta" "heinäkuuta" "elokuuta" "syyskuuta" "lokakuuta" "marraskuuta" "joulukuuta"]
-     :month-context-names      ["tammikuuta" "helmikuuta" "maaliskuuta" "huhtikuuta" "toukokuuta" "kesäkuuta" "heinäkuuta" "elokuuta" "syyskuuta" "lokakuuta" "marraskuuta" "joulukuuta"]
-     :weekday-context-abbr     ["ma" "ti" "ke" "to" "pe" "la" "su"]
-     :weekday-context-names    ["maanantai" "tiistai" "keskiviikko" "torstai" "perjantai" "lauantai" "sunnuntai"]
-     :month-standalone-abbr    ["tammi" "helmi" "maalis" "huhti" "touko" "kesä" "heinä" "elo" "syys" "loka" "marras" "joulu"]
-     :month-standalone-names   ["tammikuu" "helmikuu" "maaliskuu" "huhtikuu" "toukokuu" "kesäkuu" "heinäkuu" "elokuu" "syyskuu" "lokakuu" "marraskuu" "joulukuu"]
-     :am-pm                    ["ap." "ip."]
-     :date-patterns            (:medium "d.M.yyyy" :long "d. MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "'klo 'H.mm.ss" :full "H.mm.ss z"))
-    (fr
-     :decimal-separator        ?,
-     :eras                     ["BC" "ap. J.-C."]
-     :month-context-abbr       ["janv." "févr." "mars" "avr." "mai" "juin" "juil." "août" "sept." "oct." "nov." "déc."]
-     :month-context-names      ["janvier" "février" "mars" "avril" "mai" "juin" "juillet" "août" "septembre" "octobre" "novembre" "décembre"]
-     :weekday-context-abbr     ["lun." "mar." "mer." "jeu." "ven." "sam." "dim."]
-     :weekday-context-names    ["lundi" "mardi" "mercredi" "jeudi" "vendredi" "samedi" "dimanche"]
-     :date-patterns            (:short "dd/MM/yy" :medium "d MMM yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH' h 'mm z"))
-    (fr-BE
-     :date-patterns            (:short "d/MM/yy" :medium "dd-MMM-yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H' h 'mm' min 'ss' s 'z")
-     :parent                   fr)
-    (fr-CA
-     :date-patterns            (:short "yy-MM-dd" :medium "yyyy-MM-dd" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "H' h 'mm z")
-     :parent                   fr)
-    (fr-CH
-     :date-patterns            (:short "dd.MM.yy" :medium "d MMM yyyy" :long "d. MMMM yyyy" :full "EEEE, d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "HH.mm.' h' z")
-     :parent                   fr)
-    (ga
-     :eras                     ["RC" "AD"]
-     :month-context-abbr       ["Ean" "Feabh" "Márta" "Aib" "Beal" "Meith" "Iúil" "Lún" "MFómh" "DFómh" "Samh" "Noll"]
-     :month-context-names      ["Eanáir" "Feabhra" "Márta" "Aibreán" "Bealtaine" "Meitheamh" "Iúil" "Lúnasa" "Meán Fómhair" "Deireadh Fómhair" "Samhain" "Nollaig"]
-     :weekday-context-abbr     ["Luan" "Máirt" "Céad" "Déar" "Aoine" "Sath" "Domh"]
-     :weekday-context-names    ["Dé Luain" "Dé Máirt" "Dé Céadaoin" "Déardaoin" "Dé hAoine" "Dé Sathairn" "Dé Domhnaigh"]
-     :am-pm                    ["a.m." "p.m."]
-     :date-patterns            (:short "yy/MM/dd" :medium "yyyy MMM d" :long "yyyy MMMM d" :full "EEEE, yyyy MMMM dd")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (ga-IE
-     :date-patterns            (:short "dd/MM/yyyy" :medium "d MMM yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :parent                   ga)
-    (he
-     :eras                     ["לסה"נ" "לפסה"נ"]
-     :month-context-abbr       ["ינו" "פבר" "מרץ" "אפר" "מאי" "יונ" "יול" "אוג" "ספט" "אוק" "נוב" "דצמ"]
-     :month-context-names      ["ינואר" "פברואר" "מרץ" "אפריל" "מאי" "יוני" "יולי" "אוגוסט" "ספטמבר" "אוקטובר" "נובמבר" "דצמבר"]
-     :weekday-context-abbr     ["ב" "ג" "ד" "ה" "ו" "ש" "א"]
-     :weekday-context-names    ["יום שני" "יום שלישי" "יום רביעי" "יום חמישי" "יום שישי" "שבת" "יום ראשון"]
-     :month-standalone-abbr    ["ינו׳" "פבר׳" "מרץ" "אפר׳" "מאי" "יונ׳" "יול׳" "אוג׳" "ספט׳" "אוק׳" "נוב׳" "דצמ׳"]
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z")
-     :date-time-pattern-rule   (nil . " "))
-    (hi
-     :month-context-abbr       ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"]
-     :month-context-names      ["January" "February" "March" "April" "May" "June" "July" "August" "September" "October" "November" "December"]
-     :weekday-context-abbr     ["Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"]
-     :weekday-context-names    ["Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday" "Sunday"]
-     :date-patterns            (:short "M/d/yy" :medium "MMM d, yyyy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z"))
-    (hi-IN
-     :eras                     ["ईसापूर्व" "सन"]
-     :month-context-abbr       ["जनवरी" "फ़रवरी" "मार्च" "अप्रैल" "मई" "जून" "जुलाई" "अगस्त" "सितंबर" "अक्तूबर" "नवंबर" "दिसंबर"]
-     :month-context-names      ["जनवरी" "फ़रवरी" "मार्च" "अप्रैल" "मई" "जून" "जुलाई" "अगस्त" "सितंबर" "अक्तूबर" "नवंबर" "दिसंबर"]
-     :weekday-context-abbr     ["सोम" "मंगल" "बुध" "गुरु" "शुक्र" "शनि" "रवि"]
-     :weekday-context-names    ["सोमवार" "मंगलवार" "बुधवार" "गुरुवार" "शुक्रवार" "शनिवार" "रविवार"]
-     :am-pm                    ["पूर्वाह्न" "अपराह्न"]
-     :date-patterns            (:short "d/M/yy" :medium "d MMM, yyyy" :long "d MMMM, yyyy" :full "EEEE, d MMMM, yyyy")
-     :parent                   hi)
-    (hr
-     :decimal-separator        ?,
-     :eras                     ["Prije Krista" "Poslije Krista"]
-     :month-context-abbr       ["sij" "velj" "ožu" "tra" "svi" "lip" "srp" "kol" "ruj" "lis" "stu" "pro"]
-     :month-context-names      ["siječnja" "veljače" "ožujka" "travnja" "svibnja" "lipnja" "srpnja" "kolovoza" "rujna" "listopada" "studenoga" "prosinca"]
-     :weekday-context-abbr     ["pon" "uto" "sri" "čet" "pet" "sub" "ned"]
-     :weekday-context-names    ["ponedjeljak" "utorak" "srijeda" "četvrtak" "petak" "subota" "nedjelja"]
-     :month-standalone-abbr    ["sij" "vel" "ožu" "tra" "svi" "lip" "srp" "kol" "ruj" "lis" "stu" "pro"]
-     :month-standalone-names   ["siječanj" "veljača" "ožujak" "travanj" "svibanj" "lipanj" "srpanj" "kolovoz" "rujan" "listopad" "studeni" "prosinac"]
-     :date-patterns            (:medium "yyyy.MM.dd" :long "yyyy. MMMM dd")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (hr-HR
-     :date-patterns            (:short "dd.MM.yy." :medium "dd.MM.yyyy." :long "yyyy. MMMM dd")
-     :parent                   hr)
-    (hu
-     :decimal-separator        ?,
-     :eras                     ["i.e." "i.u."]
-     :month-context-abbr       ["jan." "febr." "márc." "ápr." "máj." "jún." "júl." "aug." "szept." "okt." "nov." "dec."]
-     :month-context-names      ["január" "február" "március" "április" "május" "június" "július" "augusztus" "szeptember" "október" "november" "december"]
-     :weekday-context-abbr     ["H" "K" "Sze" "Cs" "P" "Szo" "V"]
-     :weekday-context-names    ["hétfő" "kedd" "szerda" "csütörtök" "péntek" "szombat" "vasárnap"]
-     :am-pm                    ["DE" "DU"]
-     :date-patterns            (:medium "yyyy.MM.dd." :long "yyyy. MMMM d.")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z"))
-    (id
-     :decimal-separator        ?,
-     :eras                     ["BCE" "CE"]
-     :month-context-abbr       ["Jan" "Feb" "Mar" "Apr" "Mei" "Jun" "Jul" "Agu" "Sep" "Okt" "Nov" "Des"]
-     :month-context-names      ["Januari" "Februari" "Maret" "April" "Mei" "Juni" "Juli" "Agustus" "September" "Oktober" "November" "Desember"]
-     :weekday-context-abbr     ["Sen" "Sel" "Rab" "Kam" "Jum" "Sab" "Min"]
-     :weekday-context-names    ["Senin" "Selasa" "Rabu" "Kamis" "Jumat" "Sabtu" "Minggu"]
-     :date-patterns            (:short "yy/MM/dd" :medium "yyyy MMM d" :long "yyyy MMMM d" :full "EEEE, yyyy MMMM dd")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (id-ID
-     :date-patterns            (:short "dd/MM/yy" :medium "dd MMM yy" :long "dd MMMM yyyy" :full "EEEE dd MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss")
-     :parent                   id)
-    (is
-     :decimal-separator        ?,
-     :month-context-abbr       ["jan." "feb." "mar." "apr." "maí" "jún." "júl." "ágú." "sep." "okt." "nóv." "des."]
-     :month-context-names      ["janúar" "febrúar" "mars" "apríl" "maí" "júní" "júlí" "ágúst" "september" "október" "nóvember" "desember"]
-     :weekday-context-abbr     ["mán." "þri." "mið." "fim." "fös." "lau." "sun."]
-     :weekday-context-names    ["mánudagur" "þriðjudagur" "miðvikudagur" "fimmtudagur" "föstudagur" "laugardagur" "sunnudagur"]
-     :date-patterns            (:medium "d.M.yyyy" :long "d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (it
-     :decimal-separator        ?,
-     :eras                     ["BC" "dopo Cristo"]
-     :month-context-abbr       ["gen" "feb" "mar" "apr" "mag" "giu" "lug" "ago" "set" "ott" "nov" "dic"]
-     :month-context-names      ["gennaio" "febbraio" "marzo" "aprile" "maggio" "giugno" "luglio" "agosto" "settembre" "ottobre" "novembre" "dicembre"]
-     :weekday-context-abbr     ["lun" "mar" "mer" "gio" "ven" "sab" "dom"]
-     :weekday-context-names    ["lunedì" "martedì" "mercoledì" "giovedì" "venerdì" "sabato" "domenica"]
-     :month-standalone-names   ["Gennaio" "Febbraio" "Marzo" "Aprile" "Maggio" "Giugno" "Luglio" "Agosto" "Settembre" "Ottobre" "Novembre" "Dicembre"]
-     :date-patterns            (:short "dd/MM/yy" :medium "d-MMM-yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "H.mm" :medium "H.mm.ss" :long "H.mm.ss z"))
-    (it-CH
-     :date-patterns            (:short "dd.MM.yy" :medium "d-MMM-yyyy" :long "d. MMMM yyyy" :full "EEEE, d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "H.mm' h' z")
-     :parent                   it)
-    (ja
-     :eras                     ["紀元前" "西暦"]
-     :month-context-abbr       ["1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12"]
-     :month-context-names      ["1月" "2月" "3月" "4月" "5月" "6月" "7月" "8月" "9月" "10月" "11月" "12月"]
-     :weekday-context-abbr     ["月" "火" "水" "木" "金" "土" "日"]
-     :weekday-context-names    ["月曜日" "火曜日" "水曜日" "木曜日" "金曜日" "土曜日" "日曜日"]
-     :am-pm                    ["午前" "午後"]
-     :date-patterns            (:short "yy/MM/dd" :medium "yyyy/MM/dd" :full "yyyy'年'M'月'd'日'")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H'時'mm'分'ss'秒' z"))
-    (ja-JP-u-ca-japanese-x-lvariant-JP
-     :date-patterns            (:medium "Gy.MM.dd" :full "GGGGyyyy'年'M'月'd'日'")
-     :parent                   ja)
-    (ko
-     :eras                     ["기원전" "서기"]
-     :month-context-abbr       ["1월" "2월" "3월" "4월" "5월" "6월" "7월" "8월" "9월" "10월" "11월" "12월"]
-     :month-context-names      ["1월" "2월" "3월" "4월" "5월" "6월" "7월" "8월" "9월" "10월" "11월" "12월"]
-     :weekday-context-abbr     ["월" "화" "수" "목" "금" "토" "일"]
-     :weekday-context-names    ["월요일" "화요일" "수요일" "목요일" "금요일" "토요일" "일요일"]
-     :am-pm                    ["오전" "오후"]
-     :date-patterns            (:short "yy. M. d" :medium "yyyy. M. d" :long "yyyy'년' M'월' d'일' '('EE')'" :full "yyyy'년' M'월' d'일' EEEE")
-     :time-patterns            (:short "a h:mm" :medium "a h:mm:ss" :long "a h'시' mm'분' ss'초'" :full "a h'시' mm'분' ss'초' z"))
-    (lt
-     :decimal-separator        ?,
-     :eras                     ["pr.Kr." "po.Kr."]
-     :month-context-abbr       ["Sau" "Vas" "Kov" "Bal" "Geg" "Bir" "Lie" "Rgp" "Rgs" "Spa" "Lap" "Grd"]
-     :month-context-names      ["sausio" "vasaris" "kovas" "balandis" "gegužė" "birželis" "liepa" "rugpjūtis" "rugsėjis" "spalis" "lapkritis" "gruodis"]
-     :weekday-context-abbr     ["Pr" "An" "Tr" "Kt" "Pn" "Št" "Sk"]
-     :weekday-context-names    ["Pirmadienis" "Antradienis" "Trečiadienis" "Ketvirtadienis" "Penktadienis" "Šeštadienis" "Sekmadienis"]
-     :month-standalone-abbr    ["Saus." "Vas." "Kov." "Bal." "Geg." "Bir." "Liep." "Rugp." "Rugs." "Spal." "Lapkr." "Gruod."]
-     :month-standalone-names   ["Sausio" "Vasario" "Kovo" "Balandžio" "Gegužės" "Birželio" "Liepos" "Rugpjūčio" "Rugsėjo" "Spalio" "Lapkričio" "Gruodžio"]
-     :date-patterns            (:short "yy.M.d" :medium "yyyy-MM-dd" :long "EEEE, yyyy, MMMM d")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z"))
-    (lv
-     :decimal-separator        ?,
-     :eras                     ["pmē" "mē"]
-     :month-context-abbr       ["janv." "febr." "marts" "apr." "maijs" "jūn." "jūl." "aug." "sept." "okt." "nov." "dec."]
-     :month-context-names      ["janvāris" "februāris" "marts" "aprīlis" "maijs" "jūnijs" "jūlijs" "augusts" "septembris" "oktobris" "novembris" "decembris"]
-     :weekday-context-abbr     ["P" "O" "T" "C" "Pk" "S" "Sv"]
-     :weekday-context-names    ["pirmdiena" "otrdiena" "trešdiena" "ceturtdiena" "piektdiena" "sestdiena" "svētdiena"]
-     :month-standalone-abbr    ["Jan" "Feb" "Mar" "Apr" "Maijs" "Jūn" "Jūl" "Aug" "Sep" "Okt" "Nov" "Dec"]
-     :date-patterns            (:short "yy.d.M" :medium "yyyy.d.M" :long "EEEE, yyyy, d MMMM")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (mk
-     :decimal-separator        ?,
-     :eras                     ["пр.н.е." "ае."]
-     :month-context-abbr       ["јан." "фев." "мар." "апр." "мај." "јун." "јул." "авг." "септ." "окт." "ноем." "декем."]
-     :month-context-names      ["јануари" "февруари" "март" "април" "мај" "јуни" "јули" "август" "септември" "октомври" "ноември" "декември"]
-     :weekday-context-abbr     ["пон." "вт." "сре." "чет." "пет." "саб." "нед."]
-     :weekday-context-names    ["понеделник" "вторник" "среда" "четврток" "петок" "сабота" "недела"]
-     :date-patterns            (:short "d.M.yy" :medium "d.M.yyyy" :long "d, MMMM yyyy" :full "EEEE, d, MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:" :long "HH:mm:ss z"))
-    (ms
-     :eras                     ["BCE" "CE"]
-     :month-context-abbr       ["Jan" "Feb" "Mac" "Apr" "Mei" "Jun" "Jul" "Ogos" "Sep" "Okt" "Nov" "Dis"]
-     :month-context-names      ["Januari" "Februari" "Mac" "April" "Mei" "Jun" "Julai" "Ogos" "September" "Oktober" "November" "Disember"]
-     :weekday-context-abbr     ["Isn" "Sel" "Rab" "Kha" "Jum" "Sab" "Ahd"]
-     :weekday-context-names    ["Isnin" "Selasa" "Rabu" "Khamis" "Jumaat" "Sabtu" "Ahad"]
-     :date-patterns            (:short "yy/MM/dd" :medium "yyyy MMM d" :long "yyyy MMMM d" :full "EEEE, yyyy MMMM dd")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (ms-MY
-     :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMMM yyyy" :full "EEEE dd MMM yyyy")
-     :time-patterns            (:short "h:mm" :medium "h:mm:ss a" :long "h:mm:ss a z")
-     :parent                   ms)
-    (mt
-     :eras                     ["QK" "WK"]
-     :month-context-abbr       ["Jan" "Fra" "Mar" "Apr" "Mej" "Ġun" "Lul" "Aww" "Set" "Ott" "Nov" "Diċ"]
-     :month-context-names      ["Jannar" "Frar" "Marzu" "April" "Mejju" "Ġunju" "Lulju" "Awwissu" "Settembru" "Ottubru" "Novembru" "Diċembru"]
-     :weekday-context-abbr     ["Tne" "Tli" "Erb" "Ħam" "Ġim" "Sib" "Ħad"]
-     :weekday-context-names    ["It-Tnejn" "It-Tlieta" "L-Erbgħa" "Il-Ħamis" "Il-Ġimgħa" "Is-Sibt" "Il-Ħadd"]
-     :am-pm                    ["QN" "WN"]
-     :date-patterns            (:short "dd/MM/yyyy" :medium "dd MMM yyyy" :long "d 'ta’' MMMM yyyy" :full "EEEE, d 'ta’' MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (nl
-     :decimal-separator        ?,
-     :eras                     ["v. Chr." "n. Chr."]
-     :month-context-abbr       ["jan" "feb" "mrt" "apr" "mei" "jun" "jul" "aug" "sep" "okt" "nov" "dec"]
-     :month-context-names      ["januari" "februari" "maart" "april" "mei" "juni" "juli" "augustus" "september" "oktober" "november" "december"]
-     :weekday-context-abbr     ["ma" "di" "wo" "do" "vr" "za" "zo"]
-     :weekday-context-names    ["maandag" "dinsdag" "woensdag" "donderdag" "vrijdag" "zaterdag" "zondag"]
-     :date-patterns            (:short "d-M-yy" :medium "d-MMM-yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H:mm:ss' uur' z"))
-    (nl-BE
-     :date-patterns            (:short "d/MM/yy" :medium "d-MMM-yyyy" :long "d MMMM yyyy" :full "EEEE d MMMM yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "H.mm' u. 'z")
-     :parent                   nl)
-    (nn-NO
-     :weekday-context-abbr     ["må" "ty" "on" "to" "fr" "lau" "su"]
-     :weekday-context-names    ["måndag" "tysdag" "onsdag" "torsdag" "fredag" "laurdag" "sundag"]
-     :parent                   no)
-    (no
-     :decimal-separator        ?,
-     :month-context-abbr       ["jan" "feb" "mar" "apr" "mai" "jun" "jul" "aug" "sep" "okt" "nov" "des"]
-     :month-context-names      ["januar" "februar" "mars" "april" "mai" "juni" "juli" "august" "september" "oktober" "november" "desember"]
-     :weekday-context-abbr     ["ma" "ti" "on" "to" "fr" "lø" "sø"]
-     :weekday-context-names    ["mandag" "tirsdag" "onsdag" "torsdag" "fredag" "lørdag" "søndag"]
-     :date-patterns            (:short "dd.MM.yy" :medium "dd.MMM.yyyy" :long "d. MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "'kl 'HH.mm z"))
-    (pl
-     :decimal-separator        ?,
-     :eras                     ["p.n.e." "n.e."]
-     :month-context-abbr       ["sty" "lut" "mar" "kwi" "maj" "cze" "lip" "sie" "wrz" "paź" "lis" "gru"]
-     :month-context-names      ["stycznia" "lutego" "marca" "kwietnia" "maja" "czerwca" "lipca" "sierpnia" "września" "października" "listopada" "grudnia"]
-     :weekday-context-abbr     ["Pn" "Wt" "Śr" "Cz" "Pt" "So" "N"]
-     :weekday-context-names    ["poniedziałek" "wtorek" "środa" "czwartek" "piątek" "sobota" "niedziela"]
-     :month-standalone-names   ["styczeń" "luty" "marzec" "kwiecień" "maj" "czerwiec" "lipiec" "sierpień" "wrzesień" "październik" "listopad" "grudzień"]
-     :date-patterns            (:short "yy-MM-dd" :medium "yyyy-MM-dd" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (pl-PL
-     :date-patterns            (:short "dd.MM.yy" :medium "yyyy-MM-dd" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy")
-     :parent                   pl)
-    (pt
-     :decimal-separator        ?,
-     :eras                     ["a.C." "d.C."]
-     :month-context-abbr       ["jan" "fev" "mar" "abr" "mai" "jun" "jul" "ago" "set" "out" "nov" "dez"]
-     :month-context-names      ["Janeiro" "Fevereiro" "Março" "Abril" "Maio" "Junho" "Julho" "Agosto" "Setembro" "Outubro" "Novembro" "Dezembro"]
-     :weekday-context-abbr     ["Seg" "Ter" "Qua" "Qui" "Sex" "Sáb" "Dom"]
-     :weekday-context-names    ["Segunda-feira" "Terça-feira" "Quarta-feira" "Quinta-feira" "Sexta-feira" "Sábado" "Domingo"]
-     :date-patterns            (:short "dd-MM-yyyy" :medium "d/MMM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE, d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z" :full "HH'H'mm'm' z"))
-    (pt-BR
-     :date-patterns            (:short "dd/MM/yy" :medium "dd/MM/yyyy" :long "d' de 'MMMM' de 'yyyy" :full "EEEE, d' de 'MMMM' de 'yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "H'h'm'min's's' z" :full "HH'h'mm'min'ss's' z")
-     :parent                   pt)
-    (ro
-     :decimal-separator        ?,
-     :eras                     ["d.C." "î.d.C."]
-     :month-context-abbr       ["Ian" "Feb" "Mar" "Apr" "Mai" "Iun" "Iul" "Aug" "Sep" "Oct" "Nov" "Dec"]
-     :month-context-names      ["ianuarie" "februarie" "martie" "aprilie" "mai" "iunie" "iulie" "august" "septembrie" "octombrie" "noiembrie" "decembrie"]
-     :weekday-context-abbr     ["L" "Ma" "Mi" "J" "V" "S" "D"]
-     :weekday-context-names    ["luni" "marţi" "miercuri" "joi" "vineri" "sâmbătă" "duminică"]
-     :month-standalone-abbr    ["ian." "feb." "mar." "apr." "mai" "iun." "iul." "aug." "sept." "oct." "nov." "dec."]
-     :date-patterns            (:medium "dd.MM.yyyy" :long "dd MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (ru
-     :decimal-separator        ?,
-     :eras                     ["до н.э." "н.э."]
-     :month-context-abbr       ["янв" "фев" "мар" "апр" "мая" "июн" "июл" "авг" "сен" "окт" "ноя" "дек"]
-     :month-context-names      ["января" "февраля" "марта" "апреля" "мая" "июня" "июля" "августа" "сентября" "октября" "ноября" "декабря"]
-     :weekday-context-abbr     ["Пн" "Вт" "Ср" "Чт" "Пт" "Сб" "Вс"]
-     :weekday-context-names    ["понедельник" "вторник" "среда" "четверг" "пятница" "суббота" "воскресенье"]
-     :month-standalone-abbr    ["Янв." "Февр." "Март" "Апр." "Май" "Июнь" "Июль" "Авг." "Сент." "Окт." "Нояб." "Дек."]
-     :month-standalone-names   ["Январь" "Февраль" "Март" "Апрель" "Май" "Июнь" "Июль" "Август" "Сентябрь" "Октябрь" "Ноябрь" "Декабрь"]
-     :date-patterns            (:short "dd.MM.yy" :medium "dd.MM.yyyy" :long "d MMMM yyyy 'г.'")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z"))
-    (sk
-     :decimal-separator        ?,
-     :eras                     ["pred n.l." "n.l."]
-     :month-context-abbr       ["jan" "feb" "mar" "apr" "máj" "jún" "júl" "aug" "sep" "okt" "nov" "dec"]
-     :month-context-names      ["januára" "februára" "marca" "apríla" "mája" "júna" "júla" "augusta" "septembra" "októbra" "novembra" "decembra"]
-     :weekday-context-abbr     ["Po" "Ut" "St" "Št" "Pi" "So" "Ne"]
-     :weekday-context-names    ["Pondelok" "Utorok" "Streda" "Štvrtok" "Piatok" "Sobota" "Nedeľa"]
-     :month-standalone-names   ["január" "február" "marec" "apríl" "máj" "jún" "júl" "august" "september" "október" "november" "december"]
-     :date-patterns            (:medium "d.M.yyyy" :long "EEEE, yyyy, MMMM d")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z"))
-    (sl
-     :decimal-separator        ?,
-     :eras                     ["pr.n.š." "po Kr."]
-     :month-context-abbr       ["jan." "feb." "mar." "apr." "maj" "jun." "jul." "avg." "sep." "okt." "nov." "dec."]
-     :month-context-names      ["januar" "februar" "marec" "april" "maj" "junij" "julij" "avgust" "september" "oktober" "november" "december"]
-     :weekday-context-abbr     ["Pon" "Tor" "Sre" "Čet" "Pet" "Sob" "Ned"]
-     :weekday-context-names    ["Ponedeljek" "Torek" "Sreda" "Četrtek" "Petek" "Sobota" "Nedelja"]
-     :month-standalone-abbr    ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
-     :date-patterns            (:short "d.M.y" :medium "d.M.yyyy" :long "dd. MMMM y" :full "EEEE, dd. MMMM y")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z"))
-    (sq
-     :decimal-separator        ?,
-     :eras                     ["p.e.r." "n.e.r."]
-     :month-context-abbr       ["Jan" "Shk" "Mar" "Pri" "Maj" "Qer" "Kor" "Gsh" "Sht" "Tet" "Nën" "Dhj"]
-     :month-context-names      ["janar" "shkurt" "mars" "prill" "maj" "qershor" "korrik" "gusht" "shtator" "tetor" "nëntor" "dhjetor"]
-     :weekday-context-abbr     ["Hën" "Mar" "Mër" "Enj" "Pre" "Sht" "Die"]
-     :weekday-context-names    ["e hënë" "e martë" "e mërkurë" "e enjte" "e premte" "e shtunë" "e diel"]
-     :am-pm                    ["PD" "MD"]
-     :date-patterns            (:short "yy-MM-dd" :medium "yyyy-MM-dd")
-     :time-patterns            (:short "h.mm.a" :medium "h:mm:ss.a" :long "h.mm.ss.a z"))
-    (sr
-     :decimal-separator        ?,
-     :eras                     ["п. н. е." "н. е"]
-     :month-context-abbr       ["јан" "феб" "мар" "апр" "мај" "јун" "јул" "авг" "сеп" "окт" "нов" "дец"]
-     :month-context-names      ["јануар" "фебруар" "март" "април" "мај" "јун" "јул" "август" "септембар" "октобар" "новембар" "децембар"]
-     :weekday-context-abbr     ["пон" "уто" "сре" "чет" "пет" "суб" "нед"]
-     :weekday-context-names    ["понедељак" "уторак" "среда" "четвртак" "петак" "субота" "недеља"]
-     :date-patterns            (:short "d.M.yy." :medium "dd.MM.yyyy." :full "EEEE, dd.MMMM.yyyy.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z"))
-    (sr-BA
-     :month-context-names      ["јануар" "фебруар" "март" "април" "мај" "јуни" "јули" "август" "септембар" "октобар" "новембар" "децембар"]
-     :weekday-context-abbr     ["пон" "уто" "сри" "чет" "пет" "суб" "нед"]
-     :weekday-context-names    ["понедељак" "уторак" "сриједа" "четвртак" "петак" "субота" "недеља"]
-     :date-patterns            (:short "yy-MM-dd" :medium "yyyy-MM-dd" :long "dd. MMMM yyyy." :full "EEEE, dd. MMMM yyyy.")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH.mm.ss z" :full "HH 'часова', mm 'минута', ss' секунди'")
-     :parent                   sr)
-    (sr-Latn
-     :eras                     ["p. n. e." "n. e"]
-     :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
-     :month-context-names      ["januar" "februar" "mart" "april" "maj" "jun" "jul" "avgust" "septembar" "oktobar" "novembar" "decembar"]
-     :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
-     :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
-     :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "dd. MMMM y." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
-     :parent                   sr)
-    (sr-Latn-BA
-     :eras                     ["p. n. e." "n. e"]
-     :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
-     :month-context-names      ["januar" "februar" "mart" "april" "maj" "jun" "jul" "avgust" "septembar" "oktobar" "novembar" "decembar"]
-     :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
-     :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
-     :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "dd. MMMM y." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
-     :parent                   sr)
-    (sr-Latn-ME
-     :eras                     ["p. n. e." "n. e"]
-     :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
-     :month-context-names      ["januar" "februar" "mart" "april" "maj" "jun" "jul" "avgust" "septembar" "oktobar" "novembar" "decembar"]
-     :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
-     :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
-     :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "d.MM.yyyy." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
-     :parent                   sr)
-    (sr-Latn-RS
-     :eras                     ["p. n. e." "n. e"]
-     :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "avg" "sep" "okt" "nov" "dec"]
-     :month-context-names      ["januar" "februar" "mart" "april" "maj" "jun" "jul" "avgust" "septembar" "oktobar" "novembar" "decembar"]
-     :weekday-context-abbr     ["pon" "uto" "sre" "čet" "pet" "sub" "ned"]
-     :weekday-context-names    ["ponedeljak" "utorak" "sreda" "četvrtak" "petak" "subota" "nedelja"]
-     :date-patterns            (:short "d.M.yy." :medium "dd.MM.y." :long "dd. MMMM y." :full "EEEE, dd. MMMM y.")
-     :time-patterns            (:short "HH.mm" :medium "HH.mm.ss" :long "HH.mm.ss z" :full "HH.mm.ss zzzz")
-     :parent                   sr)
-    (sv
-     :decimal-separator        ?,
-     :eras                     ["före Kristus" "efter Kristus"]
-     :month-context-abbr       ["jan" "feb" "mar" "apr" "maj" "jun" "jul" "aug" "sep" "okt" "nov" "dec"]
-     :month-context-names      ["januari" "februari" "mars" "april" "maj" "juni" "juli" "augusti" "september" "oktober" "november" "december"]
-     :weekday-context-abbr     ["må" "ti" "on" "to" "fr" "lö" "sö"]
-     :weekday-context-names    ["måndag" "tisdag" "onsdag" "torsdag" "fredag" "lördag" "söndag"]
-     :am-pm                    ["fm" "em"]
-     :date-patterns            (:short "yyyy-MM-dd" :medium "yyyy-MMM-dd" :long "'den 'd MMMM yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z" :full "'kl 'H:mm z"))
-    (th
-     :eras                     ["ปีก่อนคริสต์กาลที่" "ค.ศ."]
-     :month-context-abbr       ["ม.ค." "ก.พ." "มี.ค." "เม.ย." "พ.ค." "มิ.ย." "ก.ค." "ส.ค." "ก.ย." "ต.ค." "พ.ย." "ธ.ค."]
-     :month-context-names      ["มกราคม" "กุมภาพันธ์" "มีนาคม" "เมษายน" "พฤษภาคม" "มิถุนายน" "กรกฎาคม" "สิงหาคม" "กันยายน" "ตุลาคม" "พฤศจิกายน" "ธันวาคม"]
-     :weekday-context-abbr     ["จ." "อ." "พ." "พฤ." "ศ." "ส." "อา."]
-     :weekday-context-names    ["วันจันทร์" "วันอังคาร" "วันพุธ" "วันพฤหัสบดี" "วันศุกร์" "วันเสาร์" "วันอาทิตย์"]
-     :am-pm                    ["ก่อนเที่ยง" "หลังเที่ยง"]
-     :date-patterns            (:short "d/M/yyyy" :medium "d MMM yyyy" :long "d MMMM yyyy" :full "EEEE'ที่ 'd MMMM G yyyy")
-     :time-patterns            (:short "H:mm' น.'" :medium "H:mm:ss" :long "H' นาฬิกา 'm' นาที'" :full "H' นาฬิกา 'm' นาที 'ss' วินาที'")
-     :date-time-pattern-rule   (t . ", "))
-    (tr
-     :decimal-separator        ?,
-     :eras                     ["MÖ" "MS"]
-     :month-context-abbr       ["Oca" "Şub" "Mar" "Nis" "May" "Haz" "Tem" "Ağu" "Eyl" "Eki" "Kas" "Ara"]
-     :month-context-names      ["Ocak" "Şubat" "Mart" "Nisan" "Mayıs" "Haziran" "Temmuz" "Ağustos" "Eylül" "Ekim" "Kasım" "Aralık"]
-     :weekday-context-abbr     ["Pzt" "Sal" "Çar" "Per" "Cum" "Cmt" "Paz"]
-     :weekday-context-names    ["Pazartesi" "Salı" "Çarşamba" "Perşembe" "Cuma" "Cumartesi" "Pazar"]
-     :date-patterns            (:short "dd.MM.yyyy" :medium "dd.MMM.yyyy" :long "dd MMMM yyyy EEEE")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z"))
-    (uk
-     :decimal-separator        ?,
-     :eras                     ["до н.е." "після н.е."]
-     :month-context-abbr       ["січ." "лют." "бер." "квіт." "трав." "черв." "лип." "серп." "вер." "жовт." "лист." "груд."]
-     :month-context-names      ["січня" "лютого" "березня" "квітня" "травня" "червня" "липня" "серпня" "вересня" "жовтня" "листопада" "грудня"]
-     :weekday-context-abbr     ["пн" "вт" "ср" "чт" "пт" "сб" "нд"]
-     :weekday-context-names    ["понеділок" "вівторок" "середа" "четвер" "п'ятниця" "субота" "неділя"]
-     :month-standalone-abbr    ["січ" "лют" "бер" "квіт" "трав" "черв" "лип" "серп" "вер" "жовт" "лист" "груд"]
-     :month-standalone-names   ["Січень" "Лютий" "Березень" "Квітень" "Травень" "Червень" "Липень" "Серпень" "Вересень" "Жовтень" "Листопад" "Грудень"]
-     :date-patterns            (:short "dd.MM.yy" :medium "d MMM yyyy" :long "d MMMM yyyy" :full "EEEE, d MMMM yyyy р.")
-     :time-patterns            (:short "H:mm" :medium "H:mm:ss" :long "H:mm:ss z"))
-    (und
-     :month-context-abbr       ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"]
-     :month-context-names      ["January" "February" "March" "April" "May" "June" "July" "August" "September" "October" "November" "December"]
-     :weekday-context-abbr     ["Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"]
-     :weekday-context-names    ["Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday" "Sunday"]
-     :date-patterns            (:short "M/d/yy" :medium "MMM d, yyyy" :long "MMMM d, yyyy" :full "EEEE, MMMM d, yyyy")
-     :time-patterns            (:short "h:mm a" :medium "h:mm:ss a" :long "h:mm:ss a z"))
-    (vi
-     :decimal-separator        ?,
-     :eras                     ["tr. CN" "sau CN"]
-     :month-context-abbr       ["thg 1" "thg 2" "thg 3" "thg 4" "thg 5" "thg 6" "thg 7" "thg 8" "thg 9" "thg 10" "thg 11" "thg 12"]
-     :month-context-names      ["tháng một" "tháng hai" "tháng ba" "tháng tư" "tháng năm" "tháng sáu" "tháng bảy" "tháng tám" "tháng chín" "tháng mười" "tháng mười một" "tháng mười hai"]
-     :weekday-context-abbr     ["Th 2" "Th 3" "Th 4" "Th 5" "Th 6" "Th 7" "CN"]
-     :weekday-context-names    ["Thứ hai" "Thứ ba" "Thứ tư" "Thứ năm" "Thứ sáu" "Thứ bảy" "Chủ nhật"]
-     :am-pm                    ["SA" "CH"]
-     :date-patterns            (:short "dd/MM/yyyy" :medium "dd-MM-yyyy" :long "'Ngày' dd 'tháng' M 'năm' yyyy" :full "EEEE, 'ngày' dd MMMM 'năm' yyyy")
-     :time-patterns            (:short "HH:mm" :medium "HH:mm:ss" :long "HH:mm:ss z")
-     :date-time-pattern-rule   (nil . " "))
-    (zh
-     :eras                     ["公元前" "公元"]
-     :month-context-abbr       ["一月" "二月" "三月" "四月" "五月" "六月" "七月" "八月" "九月" "十月" "十一月" "十二月"]
-     :month-context-names      ["一月" "二月" "三月" "四月" "五月" "六月" "七月" "八月" "九月" "十月" "十一月" "十二月"]
-     :weekday-context-abbr     ["星期一" "星期二" "星期三" "星期四" "星期五" "星期六" "星期日"]
-     :weekday-context-names    ["星期一" "星期二" "星期三" "星期四" "星期五" "星期六" "星期日"]
-     :am-pm                    ["上午" "下午"]
-     :date-patterns            (:short "yy-M-d" :medium "yyyy-M-d" :long "yyyy'年'M'月'd'日'" :full "yyyy'年'M'月'd'日' EEEE")
-     :time-patterns            (:short "ah:mm" :medium "H:mm:ss" :long "ahh'时'mm'分'ss'秒'" :full "ahh'时'mm'分'ss'秒' z"))
-    (zh-HK
-     :eras                     ["西元前" "西元"]
-     :month-context-abbr       ["1月" "2月" "3月" "4月" "5月" "6月" "7月" "8月" "9月" "10月" "11月" "12月"]
-     :weekday-context-abbr     ["一" "二" "三" "四" "五" "六" "日"]
-     :date-patterns            (:short "yy'年'M'月'd'日'" :medium "yyyy'年'M'月'd'日'" :long "yyyy'年'MM'月'dd'日' EEEE")
-     :time-patterns            (:short "ah:mm" :medium "ahh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z")
-     :parent                   zh)
-    (zh-SG
-     :weekday-context-abbr     ["周一" "周二" "周三" "周四" "周五" "周六" "周日"]
-     :date-patterns            (:short "dd/MM/yy" :medium "dd-MMM-yy" :long "dd MMM yyyy" :full "dd MMMM yyyy")
-     :time-patterns            (:medium "a hh:mm" :long "a hh:mm:ss")
-     :parent                   zh)
-    (zh-TW
-     :eras                     ["西元前" "西元"]
-     :month-standalone-abbr    ["1月" "2月" "3月" "4月" "5月" "6月" "7月" "8月" "9月" "10月" "11月" "12月"]
-     :date-patterns            (:medium "yyyy/M/d" :long "yyyy'年'M'月'd'日'" :full "yyyy'年'M'月'd'日' EEEE")
-     :time-patterns            (:short "a h:mm" :medium "a hh:mm:ss" :long "ahh'時'mm'分'ss'秒'" :full "ahh'時'mm'分'ss'秒' z")
-     :parent                   zh)))
 
 
 (provide 'datetime)

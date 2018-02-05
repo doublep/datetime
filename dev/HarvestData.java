@@ -129,17 +129,21 @@ public class HarvestData
             if (Objects.equals (locale, parent))
                 continue;
 
-            if (Objects.equals (data.get (parent), data.get (locale)))
-                data.remove (locale);
+            if (Objects.equals (data.get (parent), data.get (locale))) {
+                // We used to delete such locales, but now keep them in the database.
+                // Otherwise, at runtime you can't for example use `ru-RU' and must use
+                // `ru' instead.
+                data.put (locale, new HashMap <> ());
+            }
             else {
                 for (Iterator <Map.Entry <String, String>> it = data.get (locale).entrySet ().iterator (); it.hasNext ();) {
                     Map.Entry <String, String>  entry = it.next ();
                     if (Objects.equals (entry.getValue (), data.get (parent).get (entry.getKey ())))
                         it.remove ();
                 }
-
-                data.get (locale).put (":parent", parent.toLanguageTag ());
             }
+
+            data.get (locale).put (":parent", parent.toLanguageTag ());
         }
 
         System.out.println ("(");

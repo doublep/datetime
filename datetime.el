@@ -377,7 +377,7 @@ when necessary."
   (aref (eval-when-compile (let (result)
                              (dotimes (year 400)
                                (push (and (= (% year 4) 0) (or (/= (% year 100) 0) (= (% year 400) 0))) result))
-                             (apply #'bool-vector (nreverse result))))
+                             (apply (if (fboundp #'bool-vector) #'bool-vector #'vector) (nreverse result))))
         (mod year 400)))
 
 (defconst datetime--gregorian-cumulative-year-days (let ((days 0)

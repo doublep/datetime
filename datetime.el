@@ -113,6 +113,7 @@
 
 
 (require 'extmap)
+(require 'macroexp)
 
 
 (if (fboundp 'define-error)

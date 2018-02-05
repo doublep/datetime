@@ -113,7 +113,6 @@
 
 
 (require 'extmap)
-(require 'macroexp)
 
 
 (if (fboundp 'define-error)
@@ -548,7 +547,7 @@ to this function.
                                                  `(+ (float date-time) ,constant-offset)
                                                `(float date-time)))
                                             (_
-                                             `(datetime--convert-to-utc-float (float date-time) ,(macroexp-quote timezone-data)))))
+                                             `(datetime--convert-to-utc-float (float date-time) ,(datetime--macroexp-quote timezone-data)))))
                          (let* (,@(when (or need-year need-month need-weekday need-day)
                                     ;; Date in days, rebased from 1970-01-01 to 0000-01-01.
                                     `((date-0           (+ (floor (/ date-time ,(* 24 60 60)))
@@ -592,6 +591,15 @@ to this function.
       (if (plist-get options :debug)
           formatter
         (byte-compile formatter)))))
+
+;; Not available on older Emacs versions.  Copied from recent Emacs source.
+(defun datetime--macroexp-quote (v)
+  (if (and (not (consp v))
+	   (or (keywordp v)
+	       (not (symbolp v))
+	       (memq v '(nil t))))
+      v
+    (list 'quote v)))
 
 (defun datetime--convert-to-utc-float (date-time timezone-data)
   (let ((year-offset          (floor (/ (- date-time (car timezone-data)) datetime--average-seconds-in-year)))

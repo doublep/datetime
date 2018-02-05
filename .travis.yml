@@ -1,0 +1,24 @@
+# Not really Java, but we need it either way and Elisp is not
+# understood by Travis.
+language: java
+
+before_install:
+  # For Emacs 24.
+  - sudo add-apt-repository ppa:fryda.tomas/emacs -y
+  # For Emacs 25.
+  - sudo add-apt-repository ppa:kelleyk/emacs -y
+  # For snapshot builds.
+  - sudo add-apt-repository ppa:ubuntu-elisp/ppa -y
+  - sudo apt-get update -q
+  - sudo apt-get install -q -y ${EMACS}
+
+env:
+  - EMACS=emacs24
+  - EMACS=emacs25
+  - EMACS=emacs-snapshot
+
+jdk:
+  - oraclejdk8
+
+script:
+  ./run-tests.sh

@@ -24,4 +24,4 @@ script:
   - echo "(add-to-list 'package-archives '(\"melpa\" . \"http://stable.melpa.org/packages/\") t)" >> ./local-environment.el
   - echo "(package-refresh-contents)"                                                             >> ./local-environment.el
   - echo "(unless (require 'extmap nil t) (package-install 'extmap))"                             >> ./local-environment.el
-  ./run-tests.sh
+  - ./run-tests.sh

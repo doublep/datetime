@@ -1,3 +1,9 @@
+[![License: GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.txt)
+[![MELPA Stable](http://stable.melpa.org/packages/datetime-badge.svg)](http://stable.melpa.org/#/datetime)
+[![MELPA](http://melpa.org/packages/datetime-badge.svg)](http://melpa.org/#/datetime)
+[![Build Status](https://secure.travis-ci.org/doublep/datetime.png)](http://travis-ci.org/doublep/datetime)
+
+
 # datetime
 
 Datetime is a library for parsing, formatting, matching and recoding

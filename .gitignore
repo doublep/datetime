@@ -1,2 +1,4 @@
 *.elc
+local-environment.el
 dev/*.class
+test/*.class

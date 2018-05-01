@@ -950,7 +950,7 @@ be modified freely."
   (if include-variants
       (extmap-keys datetime--locale-extmap)
     (let (locales)
-      (extmap-mapc datetime--locale-extmap (lambda (locale data) (unless (plist-get (cdr data) :parent) (push locale locales))))
+      (extmap-mapc datetime--locale-extmap (lambda (locale data) (unless (plist-get data :parent) (push locale locales))))
       locales)))
 
 (defun datetime-list-timezones ()

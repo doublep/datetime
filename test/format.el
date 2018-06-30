@@ -39,6 +39,7 @@
           (datetime--test-formatter (datetime-float-formatter 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale)))
      ,@body))
 
+;; We assume that the Java program is already compiled externally (see `run-tests.sh').
 (defun datetime--test (times)
   (unless (listp times)
     (setq times (list times)))
@@ -71,7 +72,8 @@
       (while times
         (let ((time     (pop times))
               (expected (pop formatted)))
-          (eval `(should (progn ,time (string= ,(funcall datetime--test-formatter time) ,expected)))))))))
+          (eval `(should (progn ',datetime--test-timezone ',datetime--test-locale ,datetime--test-pattern ,time
+                                (string= ,(funcall datetime--test-formatter time) ,expected)))))))))
 
 (defun datetime--test-transition (time)
   (datetime--test (list time

@@ -281,10 +281,9 @@ when necessary."
                  (setq scan            (1+ scan)
                        num-repetitions (1+ num-repetitions)))
                (pcase character
-                 ((or ?G ?E ?a)
+                 ((or ?G ?a)
                   (push (cons (pcase character
                                 (?G 'era)
-                                (?E 'weekday-context-name)
                                 (?a 'am-pm))
                               (if (>= num-repetitions 4) 'full 'abbreviated))
                         parts))
@@ -301,6 +300,14 @@ when necessary."
                           (cons (if (= character ?M) 'month-context-name 'month-standalone-name)
                                 (if (>= num-repetitions 4) 'full 'abbreviated)))
                         parts))
+                 ((or ?E ?c)
+                  (push (cons (if (= character ?E) 'weekday-context-name 'weekday-standalone-name)
+                              (if (>= num-repetitions 4) 'full 'abbreviated))
+                        parts))
+                 (?e (push (if (<= num-repetitions 2)
+                               (cons 'weekday num-repetitions)
+                             (cons 'weekday-context-name (if (>= num-repetitions 4) 'full 'abbreviated)))
+                           parts))
                  (?w (push (cons 'week-in-year     num-repetitions) parts))
                  (?W (push (cons 'week-in-month    num-repetitions) parts))
                  (?D (push (cons 'day-in-year      num-repetitions) parts))
@@ -356,11 +363,12 @@ when necessary."
                                (`always-two-digits        (cons base 2))
                                (_                         (cons base details)))))
                           (`month            (cons ?M details))
-                          ((or `month-context-name `month-standalone-name `weekday-context-name)
+                          ((or `month-context-name `month-standalone-name `weekday-context-name `weekday-standalone-name)
                            (cons (pcase type
-                                   (`month-context-name    ?M)
-                                   (`month-standalone-name ?L)
-                                   (`weekday-context-name  ?E))
+                                   (`month-context-name      ?M)
+                                   (`month-standalone-name   ?L)
+                                   (`weekday-context-name    ?E)
+                                   (`weekday-standalone-name ?c))
                                  (pcase details
                                    (`abbreviated 3)
                                    (`full        4)
@@ -994,12 +1002,19 @@ Returned pattern is always of type \\\='java.
 This function exists not just for completeness: while in most
 cases the result is just corresponding date and time patterns
 separated by a space, for a few locales it is different."
-  (let ((date-time-pattern-rule (or (datetime-locale-field locale :date-time-pattern-rule) '(t . " ")))
-        (date-part              (datetime-locale-date-pattern locale date-variant))
-        (time-part              (datetime-locale-time-pattern locale (or time-variant date-variant))))
+  (unless date-variant
+    (setq date-variant :medium))
+  (unless time-variant
+    (setq time-variant date-variant))
+  (let* ((date-time-pattern-rule (or (datetime-locale-field locale :date-time-pattern-rule) '(t . " ")))
+         (separator              (cdr date-time-pattern-rule))
+         (date-part              (datetime-locale-date-pattern locale date-variant))
+         (time-part              (datetime-locale-time-pattern locale time-variant)))
+    (unless (stringp separator)
+      (setq separator (cdr (assoc (list date-variant time-variant) separator))))
     (if (car date-time-pattern-rule)
-        (concat date-part (cdr date-time-pattern-rule) time-part)
-      (concat time-part (cdr date-time-pattern-rule) date-part))))
+        (concat date-part separator time-part)
+      (concat time-part separator date-part))))
 
 
 (defconst datetime--english-eras  ["BC" "AD"])

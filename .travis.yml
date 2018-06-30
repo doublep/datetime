@@ -18,7 +18,7 @@ env:
   - EMACS=emacs-snapshot
 
 jdk:
-  - oraclejdk8
+  - oraclejdk9
 
 script:
   - echo "(add-to-list 'package-archives '(\"melpa\" . \"http://stable.melpa.org/packages/\") t)" >> ./local-environment.el

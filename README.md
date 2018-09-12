@@ -98,3 +98,6 @@ documented within Emacs.
 * `datetime-locale-time-pattern`
 * `datetime-locale-date-time-pattern`
 * `datetime-locale-field`
+
+* `datetime-locale-database-version`
+* `datetime-timezone-database-version`

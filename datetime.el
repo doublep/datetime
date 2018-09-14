@@ -280,54 +280,49 @@ when necessary."
                (while (and (< scan length) (eq (aref pattern scan) character))
                  (setq scan            (1+ scan)
                        num-repetitions (1+ num-repetitions)))
-               (pcase character
-                 ((or ?G ?a)
-                  (push (cons (pcase character
+               (push (pcase character
+                       ((or ?G ?a)
+                        (cons (pcase character
                                 (?G 'era)
                                 (?a 'am-pm))
-                              (if (>= num-repetitions 4) 'full 'abbreviated))
-                        parts))
-                 ((or ?y ?Y)
-                  (push (cons (if (= character ?y) 'year 'year-for-week)
+                              (if (>= num-repetitions 4) 'full 'abbreviated)))
+                       ((or ?y ?Y)
+                        (cons (if (= character ?y) 'year 'year-for-week)
                               (pcase num-repetitions
                                 (1 'add-century-when-parsing)
                                 (2 'always-two-digits)
-                                (_ num-repetitions)))
-                        parts))
-                 ((or ?M ?L)
-                  (push (if (<= num-repetitions 2)
+                                (_ num-repetitions))))
+                       ((or ?M ?L)
+                        (if (<= num-repetitions 2)
                             (cons 'month num-repetitions)
                           (cons (if (= character ?M) 'month-context-name 'month-standalone-name)
-                                (if (>= num-repetitions 4) 'full 'abbreviated)))
-                        parts))
-                 ((or ?E ?c)
-                  (push (cons (if (= character ?E) 'weekday-context-name 'weekday-standalone-name)
-                              (if (>= num-repetitions 4) 'full 'abbreviated))
-                        parts))
-                 (?e (push (if (<= num-repetitions 2)
+                                (if (>= num-repetitions 4) 'full 'abbreviated))))
+                       ((or ?E ?c)
+                        (cons (if (= character ?E) 'weekday-context-name 'weekday-standalone-name)
+                              (if (>= num-repetitions 4) 'full 'abbreviated)))
+                       (?e (if (<= num-repetitions 2)
                                (cons 'weekday num-repetitions)
-                             (cons 'weekday-context-name (if (>= num-repetitions 4) 'full 'abbreviated)))
-                           parts))
-                 (?w (push (cons 'week-in-year     num-repetitions) parts))
-                 (?W (push (cons 'week-in-month    num-repetitions) parts))
-                 (?D (push (cons 'day-in-year      num-repetitions) parts))
-                 (?d (push (cons 'day-in-month     num-repetitions) parts))
-                 (?F (push (cons 'weekday-in-month num-repetitions) parts))
-                 (?u (push (cons 'weekday          num-repetitions) parts))
-                 (?H (push (cons 'hour-0-23        num-repetitions) parts))
-                 (?k (push (cons 'hour-1-24        num-repetitions) parts))
-                 (?K (push (cons 'hour-am-pm-0-11  num-repetitions) parts))
-                 (?h (push (cons 'hour-am-pm-1-12  num-repetitions) parts))
-                 (?m (push (cons 'minute           num-repetitions) parts))
-                 (?s (push (cons 'second           num-repetitions) parts))
-                 (?S (push (cons (if (plist-get options :second-fractional-extension) 'second-fractional 'millisecond)
-                                 num-repetitions)
-                           parts))
-                 (?z (push (cons 'timezone         'general)        parts))
-                 (?Z (push (cons 'timezone         'rfc-822)        parts))
-                 (?X (push (cons 'timezone         'iso-8601)       parts))
-                 (_
-                  (error "Illegal pattern character `%c'" character))))
+                             (cons 'weekday-context-name (if (>= num-repetitions 4) 'full 'abbreviated))))
+                       (?w (cons 'week-in-year     num-repetitions))
+                       (?W (cons 'week-in-month    num-repetitions))
+                       (?D (cons 'day-in-year      num-repetitions))
+                       (?d (cons 'day-in-month     num-repetitions))
+                       (?F (cons 'weekday-in-month num-repetitions))
+                       (?u (cons 'weekday          num-repetitions))
+                       (?H (cons 'hour-0-23        num-repetitions))
+                       (?k (cons 'hour-1-24        num-repetitions))
+                       (?K (cons 'hour-am-pm-0-11  num-repetitions))
+                       (?h (cons 'hour-am-pm-1-12  num-repetitions))
+                       (?m (cons 'minute           num-repetitions))
+                       (?s (cons 'second           num-repetitions))
+                       (?S (cons (if (plist-get options :second-fractional-extension) 'second-fractional 'millisecond)
+                                 num-repetitions))
+                       (?z (cons 'timezone         'general))
+                       (?Z (cons 'timezone         'rfc-822))
+                       (?X (cons 'timezone         'iso-8601))
+                       (_
+                        (error "Illegal pattern character `%c'" character)))
+                     parts))
               (t
                (if (and (or (= character ?.) (= character ?,))
                         (plist-get options :any-decimal-separator)
@@ -770,7 +765,8 @@ specified otherwise.
         (let* ((type    (car part))
                (details (cdr part))
                (regexp  (pcase type
-                          (`era (regexp-opt (append (datetime-locale-field locale :era) nil)))
+                          (`era
+                           (datetime-locale-field locale :era))
                           ((or `year `year-for-week)
                            (cond ((and (plist-get options :only-4-digit-years) (eq details 4))
                                   (rx (= 4 (any "0-9"))))
@@ -782,67 +778,58 @@ specified otherwise.
                                   (format "[0-9]\\{%d\\}[0-9]+" (1- details)))))
                           (`month                12)
                           (`month-context-name
-                           (regexp-opt (append (datetime-locale-field locale (if (eq details 'abbreviated)
-                                                                                 :month-context-abbr
-                                                                               :month-context-names))
-                                               nil)))
+                           (datetime-locale-field locale (if (eq details 'abbreviated) :month-context-abbr      :month-context-names)))
                           (`month-standalone-name
-                           (regexp-opt (append (datetime-locale-field locale (if (eq details 'abbreviated)
-                                                                                 :month-standalone-abbr
-                                                                               :month-standalone-names))
-                                               nil)))
-                          (`week-in-year     53)
-                          (`week-in-month     5)
-                          (`day-in-month     31)
-                          (`weekday-in-month  5)
-                          (`weekday           7)
+                           (datetime-locale-field locale (if (eq details 'abbreviated) :month-standalone-abbr   :month-standalone-names)))
+                          (`week-in-year         53)
+                          (`week-in-month         5)
+                          (`day-in-month         31)
+                          (`weekday-in-month      5)
+                          (`weekday               7)
                           (`weekday-context-name
-                           (regexp-opt (append (datetime-locale-field locale (if (eq details 'abbreviated)
-                                                                                 :weekday-context-abbr
-                                                                               :weekday-context-names))
-                                               nil)))
+                           (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-context-abbr    :weekday-context-names)))
                           (`weekday-standalone-name
-                           (regexp-opt (append (datetime-locale-field locale (if (eq details 'abbreviated)
-                                                                                 :weekday-standalone-abbr
-                                                                               :weekday-standalone-names))
-                                               nil)))
+                           (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-standalone-abbr :weekday-standalone-names)))
                           (`am-pm
-                           (regexp-opt (append (datetime-locale-field locale :am-pm) nil)))
-                          (`hour-0-23        23)
-                          (`hour-1-24        24)
-                          (`hour-am-pm-0-11  11)
-                          (`hour-am-pm-1-12  12)
-                          (`minute           59)
-                          (`second           59)
-                          (`decimal-separator (rx (or "." ",")))
+                           (datetime-locale-field locale :am-pm))
+                          (`hour-0-23            23)
+                          (`hour-1-24            24)
+                          (`hour-am-pm-0-11      11)
+                          (`hour-am-pm-1-12      12)
+                          (`minute               59)
+                          (`second               59)
+                          (`decimal-separator    (rx (or "." ",")))
                           ((or `millisecond `second-fractional)
                            (apply #'concat (make-list details (rx (any "0-9")))))
                           (`timezone
                            (signal 'datetime-unsupported-timezone nil))
-                          ((pred stringp)
-                           (regexp-quote type))
                           (_ (error "Unexpected value %s" type)))))
-          (when (integerp regexp)
-            ;; REGEXP is really the maximum value of this one- or
-            ;; two-digit number.
-            (setq regexp (if (<= regexp 9)
-                             (cond ((and (>= details 2) (plist-get options :require-leading-zeros)
-                                         (format "%s[1-%d]" (make-string (- details 1) ?0) regexp)))
-                                   ((plist-get options :forbid-unnecessary-zeros)
-                                    (format "[1-%d]" regexp))
-                                   (t
-                                    (format "0*[1-%d]" regexp)))
-                           (cond ((and (= details 1) (plist-get options :accept-leading-space))
-                                  (format "[ 0-%d]?[0-9]" (/ regexp 10)))
-                                 ((and (>= details 2) (plist-get options :require-leading-zeros)
-                                       (format "%s[0-%d][0-9]" (make-string (- details 2) ?0) (/ regexp 10))))
+          (push (cond ((integerp regexp)
+                       ;; REGEXP is really the maximum value of this one- or two-digit
+                       ;; number.
+                       (if (<= regexp 9)
+                           (cond ((and (>= details 2) (plist-get options :require-leading-zeros)
+                                       (format "%s[1-%d]" (make-string (- details 1) ?0) regexp)))
                                  ((plist-get options :forbid-unnecessary-zeros)
-                                  (format "[0-%d]?[0-9]" (/ regexp 10)))
-                                 ((>= regexp 20)
-                                  (format "0*[1-%d]?[0-9]" (/ regexp 10)))
+                                  (format "[1-%d]" regexp))
                                  (t
-                                  "0*1?[0-9]")))))
-          (push regexp regexp-parts))))
+                                  (format "0*[1-%d]" regexp)))
+                         (cond ((and (= details 1) (plist-get options :accept-leading-space))
+                                (format "[ 0-%d]?[0-9]" (/ regexp 10)))
+                               ((and (>= details 2) (plist-get options :require-leading-zeros)
+                                     (format "%s[0-%d][0-9]" (make-string (- details 2) ?0) (/ regexp 10))))
+                               ((plist-get options :forbid-unnecessary-zeros)
+                                (format "[0-%d]?[0-9]" (/ regexp 10)))
+                               ((>= regexp 20)
+                                (format "0*[1-%d]?[0-9]" (/ regexp 10)))
+                               (t
+                                "0*1?[0-9]"))))
+                      ((vectorp regexp)
+                       ;; A vector of options returned by `datetime-locale-field'.
+                       (regexp-opt (append regexp nil)))
+                      (t
+                       regexp))
+                regexp-parts))))
     (apply #'concat (nreverse regexp-parts))))
 
 
@@ -856,7 +843,7 @@ Options can be a list of the following keyword arguments:
 
   :second-fractional-extension
 
-    In Java patterns any number of \"S\" stand for milliseconds.
+    In Java patterns any number of \"S\" stands for milliseconds.
     With this extension they are instead interpreted according to
     how many \"S\" there is, e.g. \"SSSSSS\" means microseconds.
 

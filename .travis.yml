@@ -5,7 +5,7 @@ language: java
 before_install:
   # For Emacs 24.
   - sudo add-apt-repository ppa:fryda.tomas/emacs -y
-  # For Emacs 25.
+  # For Emacs 25 and 26.
   - sudo add-apt-repository ppa:kelleyk/emacs -y
   # For snapshot builds.
   - sudo add-apt-repository ppa:ubuntu-elisp/ppa -y
@@ -15,6 +15,7 @@ before_install:
 env:
   - EMACS=emacs24
   - EMACS=emacs25
+  - EMACS=emacs26
   - EMACS=emacs-snapshot
 
 jdk:

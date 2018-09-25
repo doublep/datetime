@@ -6,11 +6,13 @@ install:
   - curl -fsSkL https://gist.github.com/rejeep/ebcd57c3af83b049833b/raw > travis.sh && source ./travis.sh
   - evm install $EVM_EMACS --use --skip
 
-# Testing code doesn't work on pre-24.4 Emacses, even though the
-# library itself probably works on 24.x.  Don't care much.
+# Testing code doesn't work on pre-25 Emacses even though the library
+# itself probably works on 24.x.  The reason is `make-process', which
+# is new in 25.  We cannot do without it since we need to ignore
+# stderr in order for tests to work (as due to whatever setup quirks
+# on Travis Java programs write some crap about _JAVA_OPTIONS to
+# stderr).  Don't care much.
 env:
-  - EVM_EMACS=emacs-24.4-travis
-  - EVM_EMACS=emacs-24.5-travis
   - EVM_EMACS=emacs-25.1-travis
   - EVM_EMACS=emacs-25.2-travis
   - EVM_EMACS=emacs-25.3-travis

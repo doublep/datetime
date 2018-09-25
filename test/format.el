@@ -45,7 +45,8 @@
     (setq times (list times)))
   (unless (process-live-p datetime--test-java-formatting-process)
     (let ((default-directory datetime--test-directory))
-      (setq datetime--test-java-formatting-process (start-process "java-formatter" "java-formatter" "java" "FormatTimestamp"))))
+      (setq datetime--test-java-formatting-process (make-process :name "java-formatter" :buffer "java-formatter" :stderr "java-formatter/stderr"
+                                                                 :command '("java" "FormatTimestamp")))))
   (let* ((marker        (process-mark datetime--test-java-formatting-process))
          (position      (marker-position marker))
          (num-times     (length times))

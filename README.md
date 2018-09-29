@@ -27,6 +27,32 @@ written in such a way that support for other types can be added
 relatively easily.
 
 
+## Parsing timestamps
+
+Parsing timestamps using the library is a two-step operation.  First
+you create a *parser function* for a specific pattern and options.
+Then call the parser function with one argument — the timestamp as a
+string.  It returns a floating point number — number of seconds since
+UNIX epoch in UTC timezone.
+
+Create a parser:
+
+    (datetime-parser-to-float 'java "yyyy-MM-dd HH:mm:ss.SSS"
+                              :timezone 'system)
+
+And use it:
+
+    (let ((parser (datetime-parser-to-float 'java "yyyy-MM-dd HH:mm:ss.SSS"
+                                            :timezone 'system)))
+      (funcall parser "2018-09-18 21:20:00.000"))
+
+Remember that if you parse timestamps formatted on your machine, you
+need to pass `'system` as `:timezone` option to
+`datetime-parser-to-float`: default timezone is UTC.  Parsing
+timestamps with varying timezones (i.e. with timezone information
+directly in the input string) is not yet supported.
+
+
 ## Formatting timestamps
 
 To format timestamps you first need to create a *formatter function*.

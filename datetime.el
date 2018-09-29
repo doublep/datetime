@@ -115,10 +115,14 @@
 (require 'extmap)
 
 
-(if (fboundp 'define-error)
-    (define-error 'datetime-unsupported-timezone "Timezones are currently not supported")
-  (put 'datetime-unsupported-timezone 'error-conditions '(datetime-unsupported-timezone error))
-  (put 'datetime-unsupported-timezone 'error-message "Timezones are currently not supported"))
+(defun datetime--define-error (name message)
+  (if (fboundp #'define-error)
+      (define-error name message)
+    (put name 'error-conditions `(,name error))
+    (put name 'error-message    message)))
+
+(datetime--define-error 'datetime-invalid-string       "Date-time string is invalid")
+(datetime--define-error 'datetime-unsupported-timezone "Timezones are currently not supported")
 
 
 (defconst datetime--directory (file-name-directory (or load-file-name (buffer-file-name))))
@@ -398,36 +402,42 @@ when necessary."
     (apply #'concat (nreverse strings))))
 
 
-(defsubst datetime--gregorian-leap-year-p (year)
+(defsubst datetime--gregorian-leap-year-mod-400-p (year-mod-400)
   (aref (eval-when-compile (let (result)
                              (dotimes (year 400)
                                (push (and (= (% year 4) 0) (or (/= (% year 100) 0) (= (% year 400) 0))) result))
                              (with-no-warnings (apply (if (fboundp #'bool-vector) #'bool-vector #'vector) (nreverse result)))))
-        (mod year 400)))
+        year-mod-400))
+
+(defsubst datetime--gregorian-leap-year-p (year)
+  (datetime--gregorian-leap-year-mod-400-p (mod year 400)))
 
 (defconst datetime--gregorian-cumulative-year-days (let ((days 0)
                                                          result)
                                                      (dotimes (year 400)
                                                        (push days result)
-                                                       (setq days (+ days (if (datetime--gregorian-leap-year-p year) 366 365))))
+                                                       (setq days (+ days (if (datetime--gregorian-leap-year-mod-400-p year) 366 365))))
                                                      (push days result)
                                                      (apply #'vector (nreverse result))))
-(defconst datetime--gregorian-days-in-400-years (aref datetime--gregorian-cumulative-year-days 400))
+(defconst datetime--gregorian-days-in-400-years    (aref datetime--gregorian-cumulative-year-days 400))
+(defconst datetime--gregorian-days-in-1970-years   (+ (* datetime--gregorian-days-in-400-years (/ 1970 400))
+                                                      (aref datetime--gregorian-cumulative-year-days (% 1970 400))))
 
 ;; Conveniently, this also has a loop size of 400 years.
 (defconst datetime--gregorian-first-day-of-year (let ((first-day 5)
                                                       result)
                                                   (dotimes (year 400)
                                                     (push first-day result)
-                                                    (setq first-day (% (+ first-day (if (datetime--gregorian-leap-year-p year) 2 1)) 7)))
+                                                    (setq first-day (% (+ first-day (if (datetime--gregorian-leap-year-mod-400-p year) 2 1)) 7)))
                                                   (apply #'vector (nreverse result))))
 
 (defconst datetime--average-seconds-in-year (/ (* datetime--gregorian-days-in-400-years 24 60 60) 400))
 
 ;; For non-leap years.
+(defconst datetime--gregorian-month-days            [31 28 31 30 31 30 31 31 30 31 30 31])
 (defconst datetime--gregorian-cumulative-month-days (let ((days   0)
                                                           (result (list 0)))
-                                                      (dolist (month-days '(31 28 31 30 31 30 31 31 30 31 30 31))
+                                                      (dolist (month-days (append datetime--gregorian-month-days nil))
                                                         (push (setq days (+ days month-days)) result))
                                                       (apply #'vector (nreverse result))))
 
@@ -479,10 +489,8 @@ to this function.
              (setq need-year t)
              (push "%s" format-parts)
              (push `(aref ,(datetime-locale-field locale :eras) (if (> year 0) 1 0)) format-arguments))
-            ((or `year `year-for-week)
+            (`year
              (setq need-year t)
-             (when (eq type 'year-for-week)
-               (setq need-day t))
              (push (pcase details
                      (`add-century-when-parsing "%d")
                      (`always-two-digits        "%02d")
@@ -494,6 +502,8 @@ to this function.
                    format-arguments)
              (when (eq details 'always-two-digits)
                (setcar format-arguments `(mod ,(car format-arguments) 100))))
+            (`year-for-week
+             (error "Formatting `%s' is currently not implemented" type))
             (`month
              (setq need-month t)
              (push (datetime--digits-format details) format-parts)
@@ -575,19 +585,21 @@ to this function.
                                              `(datetime--convert-to-utc-float (float date-time) ,(datetime--macroexp-quote timezone-data)))))
                          (let* (,@(when (or need-year need-month need-weekday need-day)
                                     ;; Date in days, rebased from 1970-01-01 to 0000-01-01.
-                                    `((date-0           (+ (floor (/ date-time ,(* 24 60 60)))
-                                                           ,(+ (* days-in-400-years (/ 1970 400)) (aref datetime--gregorian-cumulative-year-days (% 1970 400)))))
+                                    `((date-0           (+ (floor (/ date-time ,(* 24 60 60))) ,datetime--gregorian-days-in-1970-years))
                                       (date-%-400-years (mod date-0 ,days-in-400-years))
                                       (full-400-years   (/ (- date-0 date-%-400-years) ,days-in-400-years))
+                                      (year-%-400       (/ date-%-400-years 366))
                                       (year             (+ (* full-400-years 400)
-                                                           (let ((year-%-400 (/ date-%-400-years 366)))
+                                                           (progn
                                                              (if (< date-%-400-years (aref ,datetime--gregorian-cumulative-year-days (1+ year-%-400)))
                                                                  year-%-400
-                                                               (1+ year-%-400)))))))
+                                                               (setq year-%-400 (1+ year-%-400))))))))
                                 ,@(when (or need-month need-weekday need-day)
                                     `((year-day         (- date-0 (* full-400-years ,days-in-400-years) (aref ,datetime--gregorian-cumulative-year-days (mod year 400))))
                                       (day              year-day)
-                                      (month            (let ((july-days (if (datetime--gregorian-leap-year-p year) ,(+ 31 29 31 30 31 30) ,(+ 31 28 31 30 31 30))))
+                                      (month            (let ((july-days (if (datetime--gregorian-leap-year-mod-400-p year-%-400)
+                                                                             ,(+ 31 29 31 30 31 30)
+                                                                           ,(+ 31 28 31 30 31 30))))
                                                           (if (>= day july-days)
                                                               (if (>= (setq day (- day july-days)) ,(+ 31 31 30))
                                                                   (cond ((< (setq day (- day ,(+ 31 31 30))) 31)  9)           ; October
@@ -689,6 +701,460 @@ to this function.
                 transitions)
           (push (plist-get rule :after) transitions))))
     (aset all-year-transitions year-offset (nreverse transitions))))
+
+
+;; There is horribly unreadable level of backquoting/unquoting inside this macro...
+(defmacro datetime--parser-computation (pattern value-name validating min max &rest arguments)
+  (let ((computations    (make-symbol "$computations"))
+        (computation     (make-symbol "$computation"))
+        (range-validated (make-symbol "$range-validated"))
+        loops)
+    (setq arguments (reverse arguments))
+    (while arguments
+      (let* ((set             (pop arguments))
+             (part-indices    (nth 0 set))
+             (builder         (nth 1 set))
+             (self-validating (nth 2 set))
+             (new-loop        `(while ,part-indices
+                                 (push (,(if (consp builder) (car builder) builder) (pop ,part-indices) ,@(when (consp builder) (cdr builder)))
+                                       ,computations))))
+        (when (and self-validating (or min max))
+          (setq new-loop `(progn (when ,part-indices (setq ,range-validated t)) ,new-loop)))
+        (setq loops
+              (if loops
+                  `(,@(macroexp-unprogn new-loop)
+                    (when (or ,validating (null ,computations))
+                      ,@loops))
+                `(,new-loop)))))
+    `(let (,computations
+           ,@(when (or min max) `(,range-validated)))
+       ,@loops
+       (when ,computations
+         (let ((,computation (if (cdr ,computations)
+                                 `(let ((x ,(car ,computations)))
+                                    ,@(mapcar (lambda (computation)
+                                                `(unless (eq ,computation x)
+                                                   (signal 'datetime-invalid-string (list string ,,pattern ,,(format "inconsistent %s" value-name)))))
+                                              (cdr ,computations))
+                                    x)
+                               (car ,computations))))
+           ,@(when (or min max)
+               `((when (and ,validating (not ,range-validated))
+                   (setq ,computation `(let ((x ,,computation))
+                                         (unless ,',(cond ((and min max) `(<= ,min x ,max))
+                                                          (min           `(<= ,min x))
+                                                          (t             `(<= x ,max)))
+                                           (signal 'datetime-invalid-string (list string ,,pattern ,,(format "%s is out of range" value-name))))
+                                         x)))))
+           ,computation)))))
+
+(defun datetime-parser-to-float (type pattern &rest options)
+  "Return a function that parses date-time according to the PATTERN.
+Argument TYPE defines how the pattern should be interpreted, see
+library documentation.  Rest of the arguments must be a property
+list, i.e. keywords interleaved with values.
+
+The resulting function transforms a string to a float number of
+seconds since the epoch (0:00:00 of 1st of January 1970), in UTC
+timezone.  The function is byte-compiled, unless you specify
+:debug option.  Behavior for invalid strings depends on whether
+:non-validating option is specified.
+
+OPTIONS should be any keyword arguments understood by
+`datetime-recode-pattern' plus any from the list below, specific
+to this function.  Default value of keyword arguments is nil
+unless specified otherwise.
+
+  :locale
+
+    Locale (language) used for month, weekday etc. names.  Always
+    defaults to English, even if system locale is different.
+
+  :timezone
+
+    The timezone for parsing input strings in.  Always defaults
+    to UTC.  You can use special value \\='system to let the
+    library find the value suitable for the current machine.
+
+    If input string explicitly specifies a timezone (i.e. if
+    PATTERN does), this value is essentially ignored.
+
+  :defaults
+
+    A plist of values for those date/time part that are not
+    specified in the input.  Accepted keys:
+
+      year   -- defaults to 1970 (the year of UNIX epoch);
+      month  -- must be in the range 1 to 12, defaults to 1;
+      day    -- must be in the range 1 to 31, defaults to 1; will
+                cause validation errors if used and is too large
+                for the parsed month and year;
+      hour   -- must be in the range 0 to 23, defaults to 0;
+      minute -- must be in the range 0 to 59, defaults to 0;
+      second -- must be in the range 0 to 59, defaults to 0.
+
+    Note that the set of accepted keys is substantially smaller
+    than that of all understood pattern parts.  For example, eras
+    are not supported (use negative years), or 12-hour clock time
+    (convert to 24-hour).
+
+    If PATTERN specifies a way certain value is encoded in input
+    strings, corresponding value from this plist is ignored.
+
+  :non-validating
+
+    Validating parsers always signal a `datetime-invalid-string'
+    error if given strings that cannot be parsed or contain
+    invalid values like 30th of February.  Non-validating parsers
+    can either return unspecified numeric result or signal
+    arbitrary errors in such cases.  (But it is guaranteed they
+    don't fall into an infinite loop or perform any other
+    action.)
+
+    Non-validating parsers are more efficient, for some patterns
+    considerably so.
+
+  :case-insensitive
+
+    Accept text in any case.  This works both for literal text
+    included in the pattern and for month etc. names.
+
+  :lax-whitespace
+
+    Match any whitespace in PATTERN against any whitespace in
+    date-time string.  For this purpose \"whitespace\" is defined
+    as space and tab characters only.
+
+  :accept-leading-space
+
+    Make variable-width numbers (e.g. day number without leading
+    zero) match also if there is a leading space.
+
+  :debug
+
+    Don't byte-compile the parser function, leave it in the form
+    of Lisp lambda."
+  (let* ((locale           (datetime--get-locale options))
+         (timezone         (datetime--get-timezone options))
+         (timezone-data    (or (extmap-get datetime--timezone-extmap timezone t)
+                               (error "Unknown timezone `%s'" timezone)))
+         (defaults         (plist-get options :defaults))
+         (validating       (not (plist-get options :non-validating)))
+         (case-insensitive (and (plist-get options :case-insensitive) t))
+         (lax-whitespace   (plist-get options :lax-whitespace))
+         (part-index       0)
+         regexp-parts
+         ;; To handle excessive information patterns (e.g. "Mon 16 Sep 2018" is excessive,
+         ;; since day of the week can be found from the day of the year), we keep track of
+         ;; all the various groups and decide which to use later.  Groups are also stored
+         ;; as a list (or alist in certain cases), though this is hardly necessary, since
+         ;; normally patterns wouldn't repeat the same group.
+         era-part-indices
+         year-part-indices
+         month-number-part-indices
+         month-name-part-indices
+         day-of-month-part-indices
+         am-pm-part-indices
+         hour-0-23-part-indices
+         hour-1-24-part-indices
+         hour-am-pm-1-12-part-indices
+         hour-am-pm-0-11-part-indices
+         minute-part-indices
+         second-part-indices
+         second-fractional-part-indices
+         have-case-sensitive-parts)
+    (dolist (part (datetime--parse-pattern type pattern options))
+      (if (stringp part)
+          (let ((quoted (regexp-quote part)))
+            (when (not (or have-case-sensitive-parts (string= (upcase part) (downcase part))))
+              (setq have-case-sensitive-parts t))
+            (push (if lax-whitespace
+                      (replace-regexp-in-string (rx (1+ (any blank))) (rx (1+ (any blank))) quoted t t)
+                    quoted)
+                  regexp-parts))
+        (let* ((type    (car part))
+               (details (cdr part))
+               (regexp  (pcase type
+                          (`era                   (when (or validating (null era-part-indices))
+                                                    (push part-index era-part-indices))
+                                                  (datetime-locale-field locale :eras))
+                          (`year
+                           (when (or validating (null year-part-indices))
+                             (push (cons part-index details) year-part-indices))
+                           (cond ((or (memq details '(1 add-century-when-parsing)) (not (plist-get options :require-leading-zeros)))
+                                  (rx (1+ (any "0-9"))))
+                                 ((memq details '(2 always-two-digits))
+                                  (rx (any "0-9") (1+ (any "0-9"))))
+                                 (t
+                                  (format "[0-9]\\{%d\\}[0-9]+" (1- details)))))
+                          (`year-for-week         (error "Parsing `%s' is currently not implemented" type))
+                          (`month                 (when (or validating (null month-number-part-indices))
+                                                    (push part-index month-number-part-indices))
+                                                  12)
+                          (`month-context-name    (let ((field (if (eq details 'abbreviated) :month-context-abbr :month-context-names)))
+                                                    (when (or validating (null month-name-part-indices))
+                                                      (push (cons part-index field) month-name-part-indices))
+                                                    (datetime-locale-field locale field)))
+                          (`month-standalone-name (let ((field (if (eq details 'abbreviated) :month-standalone-abbr :month-standalone-names)))
+                                                    (when (or validating (null month-name-part-indices))
+                                                      (push (cons part-index field) month-name-part-indices))
+                                                    (datetime-locale-field locale field)))
+                          (`week-in-year         (error "Parsing `%s' is currently not implemented" type))
+                          (`week-in-month        (error "Parsing `%s' is currently not implemented" type))
+                          (`day-in-month         (when (or validating (null day-of-month-part-indices))
+                                                   (push part-index day-of-month-part-indices))
+                                                 31)
+                          (`weekday-in-month     (error "Parsing `%s' is currently not implemented" type))
+                          (`weekday               7)
+                          (`weekday-context-name
+                           (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-context-abbr    :weekday-context-names)))
+                          (`weekday-standalone-name
+                           (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-standalone-abbr :weekday-standalone-names)))
+                          (`am-pm                (when (or validating (null am-pm-part-indices))
+                                                   (push part-index am-pm-part-indices))
+                                                 (datetime-locale-field locale :am-pm))
+                          (`hour-0-23            (when (or validating (null hour-0-23-part-indices))
+                                                   (push part-index hour-0-23-part-indices))
+                                                 23)
+                          (`hour-1-24            (when (or validating (null hour-1-24-part-indices))
+                                                   (push part-index hour-1-24-part-indices))
+                                                 24)
+                          (`hour-am-pm-0-11      (when (or validating (null hour-am-pm-0-11-part-indices))
+                                                   (push part-index hour-am-pm-0-11-part-indices))
+                                                 11)
+                          (`hour-am-pm-1-12      (when (or validating (null hour-am-pm-1-12-part-indices))
+                                                   (push part-index hour-am-pm-1-12-part-indices))
+                                                 12)
+                          (`minute               (when (or validating (null minute-part-indices))
+                                                   (push part-index minute-part-indices))
+                                                 59)
+                          (`second               (when (or validating (null second-part-indices))
+                                                   (push part-index second-part-indices))
+                                                  59)
+                          (`decimal-separator    (rx (or "." ",")))
+                          (`millisecond          (push (cons part-index 1000.0) second-fractional-part-indices)
+                                                 (rx (any "0-9") (any "0-9") (any "0-9")))
+                          (`second-fractional    (push (cons part-index (expt 10.0 details)) second-fractional-part-indices)
+                                                 (apply #'concat (make-list details (rx (any "0-9")))))
+                          (`timezone
+                           (signal 'datetime-unsupported-timezone nil))
+                          (_ (error "Unexpected value %s" type)))))
+          (push (cond ((integerp regexp)
+                       ;; REGEXP is really the maximum value of this one- or two-digit
+                       ;; number.  However, we don't include it in the regexp in most of
+                       ;; the cases (unlike in `datetime-matching-regexp').
+                       (if (<= regexp 9)
+                           (format "0*[1-%d]" regexp)
+                         (cond ((and (= details 1) (plist-get options :accept-leading-space))
+                                (format "[ 0-%d]?[0-9]" (/ regexp 10)))
+                               ((>= regexp 20)
+                                (format "0*[1-%d]?[0-9]" (/ regexp 10)))
+                               (t
+                                "0*1?[0-9]"))))
+                      ((vectorp regexp)
+                       ;; A vector of options returned by `datetime-locale-field'.
+                       (setq have-case-sensitive-parts t)
+                       (regexp-opt (append regexp nil)))
+                      (t
+                       regexp))
+                regexp-parts)))
+      (setq part-index (1+ part-index)))
+    (setq era-part-indices               (nreverse era-part-indices)
+          year-part-indices              (nreverse year-part-indices)
+          month-number-part-indices      (nreverse month-number-part-indices)
+          month-name-part-indices        (nreverse month-name-part-indices)
+          day-of-month-part-indices      (nreverse day-of-month-part-indices)
+          am-pm-part-indices             (nreverse am-pm-part-indices)
+          hour-0-23-part-indices         (nreverse hour-0-23-part-indices)
+          hour-1-24-part-indices         (nreverse hour-1-24-part-indices)
+          hour-am-pm-1-12-part-indices   (nreverse hour-am-pm-1-12-part-indices)
+          hour-am-pm-0-11-part-indices   (nreverse hour-am-pm-0-11-part-indices)
+          regexp-parts                   (nreverse regexp-parts)
+          minute-part-indices            (nreverse minute-part-indices)
+          second-part-indices            (nreverse second-part-indices)
+          second-fractional-part-indices (nreverse second-fractional-part-indices))
+    (unless validating
+      (when month-number-part-indices
+        (setq month-name-part-indices nil))
+      (cond (hour-0-23-part-indices
+             (setq hour-1-24-part-indices       nil
+                   hour-am-pm-1-12-part-indices nil
+                   hour-am-pm-0-11-part-indices nil))
+            (hour-1-24-part-indices
+             (setq hour-am-pm-1-12-part-indices nil
+                   hour-am-pm-0-11-part-indices nil))
+            (hour-am-pm-0-11-part-indices
+             (setq hour-am-pm-1-12-part-indices nil))))
+    (let* ((regexp-parts            regexp-parts)
+           (substituting-indices-in (list era-part-indices
+                                          year-part-indices month-number-part-indices month-name-part-indices day-of-month-part-indices
+                                          am-pm-part-indices
+                                          hour-0-23-part-indices hour-1-24-part-indices hour-am-pm-1-12-part-indices hour-am-pm-0-11-part-indices
+                                          minute-part-indices second-part-indices second-fractional-part-indices))
+           (part-index              0)
+           (group-index             1))
+      (while regexp-parts
+        (let ((substituting-indices-in-scan substituting-indices-in))
+          (while substituting-indices-in-scan
+            (let ((listed-element (car substituting-indices-in-scan)))
+              (when listed-element
+                ;; To handle alists.
+                (unless (numberp (car listed-element))
+                  (setq listed-element (car listed-element)))
+                (when (eq part-index (car listed-element))
+                  (setf (car listed-element)               group-index
+                        (car substituting-indices-in-scan) (cdar substituting-indices-in-scan)
+                        (car regexp-parts)                 (concat "\\(" (car regexp-parts) "\\)")
+                        group-index                        (1+ group-index)
+                        substituting-indices-in-scan       nil))))
+            (setq substituting-indices-in-scan (cdr substituting-indices-in-scan))))
+        (setq regexp-parts (cdr regexp-parts)
+              part-index   (1+ part-index))))
+    (let* ((downcased          (and have-case-sensitive-parts case-insensitive))
+           (year-computation   (datetime--parser-computation pattern "year" validating nil nil
+                                                             (year-part-indices datetime--parser-year-computation)))
+           (constant-year      (unless year-computation
+                                 (or (plist-get 'year defaults) 1970)))
+           (era-correction     (when (and year-computation era-part-indices)
+                                 (datetime--parser-computation pattern "era" validating nil nil
+                                                               (era-part-indices (datetime--parser-era-correction locale :eras downcased) t))))
+           (month-computation  (or (datetime--parser-computation pattern "month" validating 0 11
+                                                                 (month-number-part-indices (datetime--parser-int-computation t))
+                                                                 (month-name-part-indices (datetime--parser-string-index-computation locale nil downcased) t))
+                                   (let ((default (plist-get 'month defaults)))
+                                     (if default (1- default) 0))))
+           (day-computation    (or (datetime--parser-computation pattern "day of month" validating 0 nil
+                                                                 (day-of-month-part-indices (datetime--parser-int-computation t)))
+                                   (let ((default (plist-get 'day defaults)))
+                                     (if default (1- default) 0))))
+           (am-pm-computation  (or (datetime--parser-computation pattern "am-pm" validating nil nil (am-pm-part-indices (datetime--parser-string-if-computation locale :am-pm downcased 0 12) t))
+                                   (plist-get 'am-pm 0)
+                                   0))
+           (hour-computation   (or (datetime--parser-computation pattern "hour" validating nil 23
+                                                                 (hour-0-23-part-indices datetime--parser-int-computation)
+                                                                 (hour-1-24-part-indices datetime--parser-hour-1-24-computation)
+                                                                 (hour-am-pm-1-12-part-indices (datetime--parser-hour-am-pm-computation am-pm-computation t))
+                                                                 (hour-am-pm-0-11-part-indices (datetime--parser-hour-am-pm-computation am-pm-computation nil)))
+                                   (plist-get 'hour defaults) 0))
+           (minute-computation (or (datetime--parser-computation pattern "minute" validating nil 59
+                                                                 (minute-part-indices datetime--parser-int-computation))
+                                   (plist-get 'minute defaults) 0))
+           (second-computation (or (datetime--parser-computation pattern "second" validating nil 59
+                                                                 (second-part-indices datetime--parser-int-computation))
+                                   (plist-get 'second defaults) 0))
+           (parser            `(+ ,@(when (or year-computation
+                                              (not (memq constant-year     '(nil 1970)))
+                                              (not (memq month-computation '(nil 0)))
+                                              (not (memq day-computation   '(nil 0))))
+                                      ;; FIXME: Optimize for constant year.
+                                      `((* (let ((year  ,(or year-computation constant-year))
+                                                 (month ,month-computation))
+                                             ,@(when era-correction
+                                                 `(,era-correction))
+                                             (let ((year-mod-400 (mod year 400)))
+                                               (+ (* (/ (- year year-mod-400) 400) ,datetime--gregorian-days-in-400-years)
+                                                  (aref ,datetime--gregorian-cumulative-year-days year-mod-400)
+                                                  ,(- datetime--gregorian-days-in-1970-years)
+                                                  (aref ,datetime--gregorian-cumulative-month-days month)
+                                                  (if (and (>= month 2) (datetime--gregorian-leap-year-mod-400-p year-mod-400)) 1 0)
+                                                  ,(if validating
+                                                       `(let ((day ,day-computation))
+                                                          (unless (and (<= 0 day)
+                                                                       (or (< day (aref ,datetime--gregorian-month-days month))
+                                                                           (and (= month 1) (= day 28)
+                                                                                (datetime--gregorian-leap-year-mod-400-p year-mod-400))))
+                                                            (signal 'datetime-invalid-string (list string ,pattern "day is out of range")))
+                                                          day)
+                                                     day-computation))))
+                                           ,(* 24 60 60))))
+                                  (* ,hour-computation ,(* 60 60))
+                                  (* ,minute-computation 60)
+                                  ,second-computation
+                                  ,@(when second-fractional-part-indices
+                                      `((/ (string-to-number (match-string ,(caar second-fractional-part-indices) string))
+                                           ,(cdar second-fractional-part-indices)))))))
+      (pcase timezone-data
+        (`(,constant-offset)
+         (unless (= constant-offset 0)
+           (setq parser `(- ,parser ,constant-offset))))
+        (_
+         (setq parser `(datetime--convert-from-utc-float ,parser ,(datetime--macroexp-quote timezone-data)))))
+      (setq parser `(save-match-data
+                      (if (string-match ,(concat "^" (apply #'concat regexp-parts) "$") ,(if downcased `(downcase string) 'string))
+                          ,parser
+                        (signal 'datetime-invalid-string (list string ,pattern "doesn't match the pattern")))))
+      (when have-case-sensitive-parts
+        (setq parser `(let ((case-fold-search ,case-insensitive))
+                        ,parser)))
+      (setq parser `(lambda (string) ,parser))
+      (if (plist-get options :debug)
+          parser
+        (byte-compile parser)))))
+
+(defun datetime--parser-year-computation (argument)
+  (pcase (cdr argument)
+    (`add-century-when-parsing `(let ((year ,(datetime--parser-int-computation (car argument))))
+                                  (if (= (length (match-string ,(car argument) string)) 2)
+                                      (+ year 2000)
+                                    year)))
+    (`always-two-digits        `(+ ,(datetime--parser-int-computation (car argument)) 2000))
+    (_                         (datetime--parser-int-computation (car argument)))))
+
+(defun datetime--parser-era-correction (argument locale field downcased)
+  (datetime--parser-string-if-computation argument locale field downcased `(setq year (- 1 year)) nil))
+
+(defun datetime--parser-hour-1-24-computation (argument)
+  `(let ((hour-1-24 ,(datetime--parser-int-computation argument)))
+     (if (< hour-1-24 24) hour-1-24 0)))
+
+(defun datetime--parser-hour-am-pm-computation (argument am-pm-computation expect-1-12)
+  (if expect-1-12
+      `(let ((hour-am-pm-1-12 ,(datetime--parser-int-computation argument)))
+         (+ (if (< hour-am-pm-1-12 12) hour-am-pm-1-12 0) ,am-pm-computation))
+    `(+ ,(datetime--parser-int-computation argument) ,am-pm-computation)))
+
+(defun datetime--parser-int-computation (argument &optional off-by-one)
+  (let ((computation `(string-to-number (match-string ,(if (consp argument) (car argument) argument) string))))
+    (if off-by-one
+        `(1- ,computation)
+      computation)))
+
+(defun datetime--parser-string-index-computation (argument locale field downcased)
+  (let ((strings (datetime-locale-field locale (or field (cdr argument)))))
+    (when downcased
+      (setq strings (vconcat (mapcar #'downcase (append strings nil)))))
+    `(let ((match (match-string ,(if (consp argument) (car argument) argument) string))
+           (n     0))
+       (while (not (string= match (aref ,strings n)))
+         (setq n (1+ n)))
+       n)))
+
+(defun datetime--parser-string-if-computation (argument locale field downcased if-first-form if-second-form)
+  (let ((strings (datetime-locale-field locale field)))
+    (unless (= (length strings) 2)
+      (error "Must be called only for two-string fields"))
+    `(if (string= (match-string ,(if (consp argument) (car argument) argument) string)
+                  ,(if downcased (downcase (aref strings 0)) (aref strings 0)))
+         ,if-first-form
+       ,if-second-form)))
+
+;; Pretty similar to `datetime--convert-to-utc-float', but not quite.
+(defun datetime--convert-from-utc-float (date-time timezone-data)
+  (let ((year-offset          (floor (/ (- date-time (car timezone-data)) datetime--average-seconds-in-year)))
+        (all-year-transitions (nth 1 timezone-data)))
+    (if (>= year-offset 0)
+        (let* ((year-transitions (or (when (< year-offset (length all-year-transitions))
+                                       (aref all-year-transitions year-offset))
+                                     (datetime--calculate-year-transitions timezone-data year-offset)))
+               (offset           (pop year-transitions)))
+          (when year-transitions
+            (let ((offset-in-year (floor (- date-time (car timezone-data) (* year-offset datetime--average-seconds-in-year)))))
+              (while (and (>= (- offset-in-year offset) (car year-transitions))
+                          (setq offset           (cadr year-transitions)
+                                year-transitions (cddr year-transitions))))))
+          (- date-time offset))
+      ;; Offset before the very first transition.
+      (- date-time (car (aref all-year-transitions 0))))))
 
 
 (defun datetime-matching-regexp (type pattern &rest options)

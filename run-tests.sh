@@ -14,7 +14,6 @@
 set -e
 
 OWN_DIRECTORY=$(dirname $0)
-cd $OWN_DIRECTORY
 
 if [ -z "$EMACS" ]; then
     EMACS=emacs
@@ -28,13 +27,13 @@ if [ -z "$ERT_SELECTOR" ]; then
     ERT_SELECTOR=t
 fi
 
-cd test
+cd $OWN_DIRECTORY/test
 javac ProcessTimestamp.java
-cd ..
 
 $EMACS --batch                                                                                                               \
        --eval "(message \"Using Emacs %s\" (emacs-version))"                                                                 \
        --eval "(progn (require 'package) (package-initialize))"                                                              \
+       --directory "$OWN_DIRECTORY"                                                                                          \
        --eval "(when (locate-file \"local-environment.el\" (list (car load-path))) (load \"local-environment.el\" nil t t))" \
        -l datetime.el                                                                                                        \
        -l test/test.el                                                                                                       \
@@ -44,6 +43,7 @@ $EMACS --batch                                                                  
 
 $EMACS --batch                                                                                                               \
        --eval "(progn (require 'package) (package-initialize))"                                                              \
+       --directory "$OWN_DIRECTORY"                                                                                          \
        --eval "(when (locate-file \"local-environment.el\" (list (car load-path))) (load \"local-environment.el\" nil t t))" \
        --eval "(setq byte-compile-error-on-warn t)"                                                                          \
        --eval "(batch-byte-compile)" datetime.el

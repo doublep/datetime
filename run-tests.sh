@@ -13,6 +13,7 @@
 
 set -e
 
+CURRENT_DIRECTORY=$(pwd)
 OWN_DIRECTORY=$(dirname $0)
 
 if [ -z "$EMACS" ]; then
@@ -29,6 +30,7 @@ fi
 
 cd $OWN_DIRECTORY/test
 javac ProcessTimestamp.java
+cd $CURRENT_DIRECTORY
 
 $EMACS --batch                                                                                                               \
        --eval "(message \"Using Emacs %s\" (emacs-version))"                                                                 \

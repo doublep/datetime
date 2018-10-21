@@ -100,31 +100,31 @@ timestamp”.
 These functions are also part of the library interface.  They are
 documented within Emacs.
 
-    * `datetime-recode-pattern`
+* `datetime-recode-pattern`
 
-    * `datetime-pattern-locale-dependent-p`
-    * `datetime-pattern-includes-date-p`
-    * `datetime-pattern-includes-time-p`
-    * `datetime-pattern-includes-era-p`
-    * `datetime-pattern-includes-year-p`
-    * `datetime-pattern-includes-month-p`
-    * `datetime-pattern-includes-week-p`
-    * `datetime-pattern-includes-day-p`
-    * `datetime-pattern-includes-weekday-p`
-    * `datetime-pattern-includes-hour-p`
-    * `datetime-pattern-includes-minute-p`
-    * `datetime-pattern-includes-second-p`
-    * `datetime-pattern-includes-second-fractionals-p`
-    * `datetime-pattern-num-second-fractionals`
-    * `datetime-pattern-includes-timezone-p`
+* `datetime-pattern-locale-dependent-p`
+* `datetime-pattern-includes-date-p`
+* `datetime-pattern-includes-time-p`
+* `datetime-pattern-includes-era-p`
+* `datetime-pattern-includes-year-p`
+* `datetime-pattern-includes-month-p`
+* `datetime-pattern-includes-week-p`
+* `datetime-pattern-includes-day-p`
+* `datetime-pattern-includes-weekday-p`
+* `datetime-pattern-includes-hour-p`
+* `datetime-pattern-includes-minute-p`
+* `datetime-pattern-includes-second-p`
+* `datetime-pattern-includes-second-fractionals-p`
+* `datetime-pattern-num-second-fractionals`
+* `datetime-pattern-includes-timezone-p`
 
-    * `datetime-list-locales`
-    * `datetime-list-timezones`
+* `datetime-list-locales`
+* `datetime-list-timezones`
 
-    * `datetime-locale-date-pattern`
-    * `datetime-locale-time-pattern`
-    * `datetime-locale-date-time-pattern`
-    * `datetime-locale-field`
+* `datetime-locale-date-pattern`
+* `datetime-locale-time-pattern`
+* `datetime-locale-date-time-pattern`
+* `datetime-locale-field`
 
-    * `datetime-locale-database-version`
-    * `datetime-timezone-database-version`
+* `datetime-locale-database-version`
+* `datetime-timezone-database-version`

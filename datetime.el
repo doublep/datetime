@@ -1322,8 +1322,8 @@ Options can be a list of the following keyword arguments:
 
 
 ;; Arguments are expected to be atoms.
-(defmacro datetime--pattern-includes-p (type pattern &rest part-types)
-  `(let ((parts (datetime--parse-pattern ,type ,pattern nil))
+(defmacro datetime--pattern-includes-p (type pattern options &rest part-types)
+  `(let ((parts (datetime--parse-pattern ,type ,pattern ,options))
          includes)
      (while parts
        (let ((part (car parts)))
@@ -1335,68 +1335,126 @@ Options can be a list of the following keyword arguments:
            (setq parts (cdr parts)))))
      includes))
 
-(defun datetime-pattern-locale-dependent-p (type pattern)
+(defun datetime-pattern-locale-dependent-p (type pattern &rest options)
   "Determine if PATTERN includes any locale-based parts.
 In other words, return non-nil if PATTERN includes any textual
-names."
-  (datetime--pattern-includes-p type pattern era month-context-name month-standalone-name weekday-context-name weekday-standalone-name am-pm))
+names.
 
-(defun datetime-pattern-includes-date-p (type pattern)
-  "Determine if PATTERN includes any date parts."
-  (datetime--pattern-includes-p type pattern
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options era month-context-name month-standalone-name weekday-context-name weekday-standalone-name am-pm))
+
+(defun datetime-pattern-includes-date-p (type pattern &rest options)
+  "Determine if PATTERN includes any date parts.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options
                                 era year year-for-week month month-context-name month-standalone-name week-in-year week-in-month
                                 day-in-year day-in-month weekday-in-month weekday weekday-context-name weekday-standalone-name))
 
-(defun datetime-pattern-includes-time-p (type pattern)
-  "Determine if PATTERN includes any time parts."
-  (datetime--pattern-includes-p type pattern am-pm hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12 minute second millisecond second-fractional))
+(defun datetime-pattern-includes-time-p (type pattern &rest options)
+  "Determine if PATTERN includes any time parts.
 
-(defun datetime-pattern-includes-era-p (type pattern)
-  "Determine if PATTERN includes the date era."
-  (datetime--pattern-includes-p type pattern era))
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options
+                                am-pm hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12 minute second millisecond second-fractional))
 
-(defun datetime-pattern-includes-year-p (type pattern)
-  "Determine if PATTERN includes the year."
-  (datetime--pattern-includes-p type pattern year year-for-week))
+(defun datetime-pattern-includes-era-p (type pattern &rest options)
+  "Determine if PATTERN includes the date era.
 
-(defun datetime-pattern-includes-month-p (type pattern)
-  "Determine if PATTERN includes the month."
-  (datetime--pattern-includes-p type pattern month month-context-name month-standalone-name))
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options era))
 
-(defun datetime-pattern-includes-week-p (type pattern)
-  "Determine if PATTERN includes the week."
-  (datetime--pattern-includes-p type pattern week-in-year week-in-month))
+(defun datetime-pattern-includes-year-p (type pattern &rest options)
+  "Determine if PATTERN includes the year.
 
-(defun datetime-pattern-includes-day-p (type pattern)
-  "Determine if PATTERN includes the day."
-  (datetime--pattern-includes-p type pattern day-in-year day-in-month))
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options year year-for-week))
 
-(defun datetime-pattern-includes-weekday-p (type pattern)
-  "Determine if PATTERN includes the weekday."
-  (datetime--pattern-includes-p type pattern weekday-in-month weekday weekday-context-name weekday-standalone-name))
+(defun datetime-pattern-includes-month-p (type pattern &rest options)
+  "Determine if PATTERN includes the month.
 
-(defun datetime-pattern-includes-hour-p (type pattern)
-  "Determine if PATTERN includes hours."
-  (datetime--pattern-includes-p type pattern hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12))
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options month month-context-name month-standalone-name))
 
-(defun datetime-pattern-includes-minute-p (type pattern)
-  "Determine if PATTERN includes minutes."
-  (datetime--pattern-includes-p type pattern minute))
+(defun datetime-pattern-includes-week-p (type pattern &rest options)
+  "Determine if PATTERN includes the week.
 
-(defun datetime-pattern-includes-second-p (type pattern)
-  "Determine if PATTERN includes seconds."
-  (datetime--pattern-includes-p type pattern second))
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options week-in-year week-in-month))
 
-(defun datetime-pattern-includes-millisecond-p (type pattern)
-  "Determine if PATTERN includes fractions of seconds."
-  ;; Without enabled :second-fractional-extension consecutive "S" are
-  ;; just always parsed to milliseconds.  Check for
-  ;; `second-fractional' just in case of another pattern type.
-  (datetime--pattern-includes-p type pattern millisecond second-fractional))
+(defun datetime-pattern-includes-day-p (type pattern &rest options)
+  "Determine if PATTERN includes the day.
 
-(defun datetime-pattern-includes-timezone-p (type pattern)
-  "Determine if PATTERN includes timezone."
-  (datetime--pattern-includes-p type pattern timezone))
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options day-in-year day-in-month))
+
+(defun datetime-pattern-includes-weekday-p (type pattern &rest options)
+  "Determine if PATTERN includes the weekday.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options weekday-in-month weekday weekday-context-name weekday-standalone-name))
+
+(defun datetime-pattern-includes-hour-p (type pattern &rest options)
+  "Determine if PATTERN includes hours.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12))
+
+(defun datetime-pattern-includes-minute-p (type pattern &rest options)
+  "Determine if PATTERN includes minutes.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options minute))
+
+(defun datetime-pattern-includes-second-p (type pattern &rest options)
+  "Determine if PATTERN includes seconds.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options second))
+
+(defun datetime-pattern-includes-second-fractionals-p (type pattern &rest options)
+  "Determine if PATTERN includes fractions of seconds.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options millisecond second-fractional))
+
+(define-obsolete-function-alias 'datetime-pattern-includes-millisecond-p 'datetime-pattern-includes-second-fractionals-p)
+
+(defun datetime-pattern-num-second-fractionals (type pattern &rest options)
+  "Determine if PATTERN includes fractions of seconds.
+
+OPTIONS are passed to `datetime-recode-pattern'.  At least
+`:second-fractional-extension' can affect result of this
+function."
+  (let ((parts           (datetime--parse-pattern type pattern options))
+        (num-fractionals 0))
+    (while parts
+      (let ((part (pop parts)))
+        (when (consp part)
+          (pcase (car part)
+            (`millisecond       (setq num-fractionals (max num-fractionals 3)))
+            (`second-fractional (setq num-fractionals (max num-fractionals (cdr part))))))))
+    num-fractionals))
+
+(defun datetime-pattern-includes-timezone-p (type pattern &rest options)
+  "Determine if PATTERN includes timezone.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options timezone))
 
 
 (defun datetime-list-locales (&optional include-variants)

@@ -17,13 +17,15 @@ cd ..
 java -cp dev HarvestData --locales | tr "\n" " "                                                                                \
   | $EMACS -batch                                                                                                               \
           --eval "(progn (require 'package) (package-initialize))"                                                              \
-          --eval "(when (locate-file \"local-environment.el\" (list (car load-path))) (load \"local-environment.el\" nil t t))" \
+          --eval "(let ((local-environment (locate-file \"local-environment.el\" (list default-directory))))                    \
+                    (when local-environment (load local-environment nil t t)))"                                                 \
           --eval "(require 'extmap)"                                                                                            \
           --eval "(extmap-from-alist \"locale-data.extmap\" (read-minibuffer \"\") :overwrite t)"
 
 java -cp dev HarvestData --timezones | tr "\n" " "                                                                              \
   | $EMACS -batch                                                                                                               \
           --eval "(progn (require 'package) (package-initialize))"                                                              \
-          --eval "(when (locate-file \"local-environment.el\" (list (car load-path))) (load \"local-environment.el\" nil t t))" \
+          --eval "(let ((local-environment (locate-file \"local-environment.el\" (list default-directory))))                    \
+                    (when local-environment (load local-environment nil t t)))"                                                 \
           --eval "(require 'extmap)"                                                                                            \
           --eval "(extmap-from-alist \"timezone-data.extmap\" (read-minibuffer \"\") :overwrite t)"

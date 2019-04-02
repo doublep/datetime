@@ -1589,14 +1589,14 @@ Supported fields:
 This version will be incremented each time locale database of the
 package is updated.  It can be used e.g. to invalidate caches you
 create based on locales `datetime' knows about."
-  1)
+  2)
 
 (defun datetime-timezone-database-version ()
   "Return timezone database version, a simple integer.
 This version will be incremented each time timezone database of the
 package is updated.  It can be used e.g. to invalidate caches you
 create based on timezone `datetime' knows about and their rules."
-  1)
+  2)
 
 
 (provide 'datetime)

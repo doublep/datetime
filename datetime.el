@@ -1,10 +1,10 @@
 ;;; datetime.el --- Parsing, formatting and matching timestamps  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016-2018 Paul Pogonyshev
+;; Copyright (C) 2016-2019 Paul Pogonyshev
 
 ;; Author:     Paul Pogonyshev <pogonyshev@gmail.com>
 ;; Maintainer: Paul Pogonyshev <pogonyshev@gmail.com>
-;; Version:    0.6.1
+;; Version:    0.6.2
 ;; Keywords:   lisp, i18n
 ;; Homepage:   https://github.com/doublep/datetime
 ;; Package-Requires: ((emacs "24.1") (extmap "1.0"))

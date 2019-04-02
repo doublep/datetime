@@ -160,19 +160,31 @@
   "Date-time handling library."
   :group 'i18n)
 
+;; Unfortunately I see no way to provide completion from a non-fixed
+;; set of options.
 (defcustom datetime-locale nil
   "Default locale for date-time formatting and parsing.
 Leave unset to let the library auto-determine it from your OS
-when necessary."
+when necessary.
+
+You can see the list of locales supported by the library by
+evaluating this form:
+
+    (prin1-to-string (sort (datetime-list-locales t) #\\='string<))"
   :group 'datetime
-  :type  'symbol)
+  :type  '(restricted-sexp :match-alternatives ((lambda (value) (or (null value) (extmap-contains-key datetime--locale-extmap value))))))
 
 (defcustom datetime-timezone nil
   "Default timezone for date-time formatting and parsing.
 Leave unset to let the library auto-determine it from your OS
-when necessary."
+when necessary.
+
+You can see the list of supported timezones by evaluating this
+form:
+
+    (prin1-to-string (sort (datetime-list-timezones) #\\='string<))"
   :group 'datetime
-  :type  'symbol)
+  :type  '(restricted-sexp :match-alternatives ((lambda (value) (or (null value) (extmap-contains-key datetime--timezone-extmap value))))))
 
 
 (defun datetime--get-locale (options)
@@ -213,17 +225,22 @@ when necessary."
     (let ((system-timezone (intern (or (pcase system-type
                                          ((or `gnu `gnu/linux `gnu/kfreebsd)
                                           (or ;; For Debian-based distros.
-                                             (when (file-exists-p "/etc/timezone")
-                                               (condition-case nil
-                                                   (with-temp-buffer
-                                                     (insert-file-contents-literally "/etc/timezone")
-                                                     (when (looking-at "\\S-+")
-                                                       (match-string-no-properties 0)))
-                                                 (error)))
-                                             ;; Freedesktop standard (?).
-                                             (let ((locatime (file-symlink-p "/etc/localtime")))
-                                               (when (and locatime (string-match "/usr/share/zoneinfo/\\(.+\\)" locatime))
-                                                 (match-string-no-properties 1 locatime))))))
+                                              (when (file-exists-p "/etc/timezone")
+                                                (condition-case nil
+                                                    (with-temp-buffer
+                                                      (insert-file-contents-literally "/etc/timezone")
+                                                      (when (looking-at "\\S-+")
+                                                        (match-string-no-properties 0)))
+                                                  (error)))
+                                              ;; Freedesktop standard (?).
+                                              (let ((localtime (file-symlink-p "/etc/localtime")))
+                                                (when (and localtime (string-match "/usr/share/zoneinfo/\\(.+\\)" localtime))
+                                                  (match-string-no-properties 1 localtime)))))
+                                         ;; FIXME: On Windows we could (probably) use "tzutil /g" command to get
+                                         ;;        timezone identifier, but then it still needs to be mapped to what we
+                                         ;;        have in `timezone-data.extmap' (i.e. Java format)...  So, currently
+                                         ;;        Windows users have to set `datetime-timezone' manually.
+                                         )
                                        (cadr (current-time-zone))
                                        "?"))))
       (if (extmap-contains-key datetime--timezone-extmap system-timezone)

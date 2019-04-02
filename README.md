@@ -11,6 +11,25 @@ timestamps and date-time format strings.  Not all of the planned
 functionality is implemented yet.
 
 
+## System locale and timezone
+
+The library will try to guess your system locale and timezone, but
+this is frustratingly difficult.  In particular, on MS Windows it will
+not be able to determine the timezone (not sure about locale).
+Patches to improve this are welcome.
+
+In any case, when it fails completely or guesses incorrectly, you can
+always override the heuristics results by setting variables
+`datetime-locale` and/or `datetime-timezone` manually.  Both are also
+available through Emacs customization interface, group `datetime`.
+
+To find the list of all supported locales and timezones, evaluate the
+following forms:
+
+    (prin1-to-string (sort (datetime-list-locales t) #'string<))
+    (prin1-to-string (sort (datetime-list-timezones) #'string<))
+
+
 ## Pattern types
 
 There exist several different ways to specify date and/or time format.

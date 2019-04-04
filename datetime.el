@@ -155,13 +155,34 @@
 (defvar datetime--pattern-formatters '((parsed . (lambda (parts options) parts))
                                        (java   . datetime--format-java-pattern)))
 
+;; `datetime-list-*' must be defined here, since they are used in
+;; `defcustom' forms below.
+(defun datetime-list-locales (&optional include-variants)
+  "List all locales for which the library has information.
+If INCLUDE-VARIANTS is nil, only include “base” locales (in
+format \"xx\"), if it is t then also include “variants” in format
+\"xx-YY\".
+
+Return value is a list of symbols in no particular order; it can
+be modified freely."
+  (if include-variants
+      (extmap-keys datetime--locale-extmap)
+    (let (locales)
+      (extmap-mapc datetime--locale-extmap (lambda (locale data) (unless (plist-get data :parent) (push locale locales))))
+      locales)))
+
+(defun datetime-list-timezones ()
+  "List all timezones for which the library has information.
+
+Return value is a list of symbols in no particular order; it can
+be modified freely."
+  (extmap-keys datetime--timezone-extmap))
+
 
 (defgroup datetime nil
   "Date-time handling library."
   :group 'i18n)
 
-;; Unfortunately I see no way to provide completion from a non-fixed
-;; set of options.
 (defcustom datetime-locale nil
   "Default locale for date-time formatting and parsing.
 Leave unset to let the library auto-determine it from your OS
@@ -172,7 +193,9 @@ evaluating this form:
 
     (prin1-to-string (sort (datetime-list-locales t) #\\='string<))"
   :group 'datetime
-  :type  '(restricted-sexp :match-alternatives ((lambda (value) (or (null value) (extmap-contains-key datetime--locale-extmap value))))))
+  ;; The only minor problem is the type won't be rebuilt if `datetime--locale-extmap' is
+  ;; autoreloaded, but oh well.
+  :type  `(choice (const nil) ,@(mapcar (lambda (locale) `(const ,locale)) (datetime-list-locales t))))
 
 (defcustom datetime-timezone nil
   "Default timezone for date-time formatting and parsing.
@@ -184,7 +207,7 @@ form:
 
     (prin1-to-string (sort (datetime-list-timezones) #\\='string<))"
   :group 'datetime
-  :type  '(restricted-sexp :match-alternatives ((lambda (value) (or (null value) (extmap-contains-key datetime--timezone-extmap value))))))
+  :type  `(choice (const nil) ,@(mapcar (lambda (locale) `(const ,locale)) (datetime-list-timezones))))
 
 
 (defun datetime--get-locale (options)
@@ -1472,28 +1495,6 @@ function."
 OPTIONS are passed to `datetime-recode-pattern'.  Currently no
 options can affect result of this function."
   (datetime--pattern-includes-p type pattern options timezone))
-
-
-(defun datetime-list-locales (&optional include-variants)
-  "List all locales for which the library has information.
-If INCLUDE-VARIANTS is nil, only include “base” locales (in
-format \"xx\"), if it is t then also include “variants” in format
-\"xx-YY\".
-
-Return value is a list of symbols in no particular order; it can
-be modified freely."
-  (if include-variants
-      (extmap-keys datetime--locale-extmap)
-    (let (locales)
-      (extmap-mapc datetime--locale-extmap (lambda (locale data) (unless (plist-get data :parent) (push locale locales))))
-      locales)))
-
-(defun datetime-list-timezones ()
-  "List all timezones for which the library has information.
-
-Return value is a list of symbols in no particular order; it can
-be modified freely."
-  (extmap-keys datetime--timezone-extmap))
 
 
 (defsubst datetime--do-get-locale-pattern (patterns variant)

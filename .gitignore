@@ -1,4 +1,8 @@
 *.elc
-local-environment.el
-dev/*.class
-test/*.class
+
+/dev/*.class
+/test/*.class
+
+/Eldev-local
+/.eldev
+/dist

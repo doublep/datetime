@@ -1,10 +1,11 @@
 # Not really Java, but we need it either way and Elisp is not
 # understood by Travis.
 language: java
+dist: trusty
 
 install:
-  - curl -fsSkL https://gist.github.com/rejeep/ebcd57c3af83b049833b/raw > travis.sh && source ./travis.sh
-  - evm install $EVM_EMACS --use --skip
+  - curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/travis-eldev-and-evm > x.sh && source ./x.sh
+  - evm install $EVM_EMACS --use
 
 # Testing code doesn't work on pre-25 Emacses even though the library
 # itself probably works on 24.x.  The reason is `make-process', which
@@ -17,12 +18,9 @@ env:
   - EVM_EMACS=emacs-25.2-travis
   - EVM_EMACS=emacs-25.3-travis
   - EVM_EMACS=emacs-26.1-travis
-
-jdk:
-  - oraclejdk9
+  - EVM_EMACS=emacs-26.2-travis
+  - EVM_EMACS=emacs-26.3-travis
 
 script:
-  - echo "(add-to-list 'package-archives '(\"melpa\" . \"http://stable.melpa.org/packages/\") t)" >> ./local-environment.el
-  - echo "(package-refresh-contents)"                                                             >> ./local-environment.el
-  - echo "(unless (require 'extmap nil t) (package-install 'extmap))"                             >> ./local-environment.el
-  - ./run-tests.sh
+  - eldev -p -dtT test --expect 20
+  - eldev -dtT compile --set all --warnings-as-errors

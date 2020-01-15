@@ -68,3 +68,6 @@
           (setq position         (point)
                 num-result-lines (1+ num-result-lines))))
       (nreverse result))))
+
+
+(provide 'test/base)

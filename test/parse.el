@@ -16,8 +16,7 @@
 ;; along with this program.  If not, see http://www.gnu.org/licenses.
 
 
-(require 'datetime)
-(require 'ert)
+(require 'test/base)
 
 (defvar datetime--test-parser nil)
 

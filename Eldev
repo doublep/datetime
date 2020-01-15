@@ -1,0 +1,53 @@
+; -*- mode: emacs-lisp; lexical-binding: t -*-
+
+(eldev-use-package-archive 'melpa-stable)
+
+;; You can run `eldev build -sdev' to compile the development tool.
+(push '(dev . "/dev") eldev-filesets)
+
+
+(eldev-defbuilder datetime-builder-java (source target)
+  :short-name     "JAVAC"
+  :source-files   "*.java"
+  :targets        (".java" -> ".class")
+  :define-cleaner (eldev-cleaner-java-class
+                   "Delete compiled Java `.class' files."
+                   :aliases java
+                   :default t)
+  :collect        (":default" ":java")
+  (eldev-call-process (executable-find "javac") `(,source ,@(when eldev-build-suppress-warnings '("-nowarn")) ,@(when eldev-build-treat-warnings-as-errors '("-Werror")))
+    ;; FIXME: Using Eldev package-private function.
+    (when (fboundp 'eldev--forward-process-output)
+      (eldev--forward-process-output))
+    (unless (= exit-code 0)
+      (signal 'eldev-error `("`javac' process exited with error code %d" ,exit-code)))))
+
+(eldev-defbuilder datetime-builder-locale-data-extmap (source target)
+  :short-name     "LOCALES"
+  :message        target
+  :source-files   "/dev/HarvestData.class"
+  :targets        "locale-data.extmap"
+  :collect        ":data"
+  (datetime--build-extmap target "--locales"))
+
+(eldev-defbuilder datetime-builder-timezone-data-extmap (source target)
+  :short-name     "TIMEZONES"
+  :message        target
+  :source-files   "/dev/HarvestData.class"
+  :targets        "timezone-data.extmap"
+  :collect        ":data"
+  (datetime--build-extmap target "--timezones"))
+
+(defun datetime--build-extmap (target &rest command-line)
+  (require 'extmap)
+  (eldev-call-process "java" `("-cp" "dev" "HarvestData" ,@command-line)
+    (unless (= exit-code 0)
+      (signal 'eldev-error `("`HarvestData' tool exited with error code %d: %s" ,exit-code ,(buffer-string))))
+    (extmap-from-alist target (eldev-read-wholly (buffer-string) "`HarvestData' output") :overwrite t)))
+
+
+;; Before testing we need to compile `test/ProcessTimestamp.java'.
+(add-hook 'eldev-test-hook (lambda ()
+                             (let ((eldev-build-sets      '(test))
+                                   (eldev-verbosity-level 'quiet))
+                               (eldev-build))))

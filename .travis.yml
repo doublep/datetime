@@ -21,6 +21,9 @@ env:
   - EVM_EMACS=emacs-26.2-travis
   - EVM_EMACS=emacs-26.3-travis
 
+jdk:
+  - oraclejdk9
+
 script:
   - eldev -p -dtT test --expect 20
   - eldev -dtT compile --set all --warnings-as-errors

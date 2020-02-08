@@ -50,6 +50,7 @@
 
 ;; Before testing we need to compile `test/ProcessTimestamp.java'.
 (add-hook 'eldev-test-hook (lambda ()
+                             (eldev-verbose "Building the tool in `test' target set first...")
                              (let ((eldev-build-sets      '(test))
                                    (eldev-verbosity-level 'quiet))
                                (eldev-build))))

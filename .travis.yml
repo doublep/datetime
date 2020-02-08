@@ -22,7 +22,7 @@ env:
   - EVM_EMACS=emacs-26.3-travis
 
 jdk:
-  - oraclejdk9
+  - openjdk11
 
 script:
   - eldev -p -dtT test --expect 20

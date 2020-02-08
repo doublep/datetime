@@ -76,41 +76,63 @@ public class HarvestData
             map.put (":date-patterns", toLispPlist (date_patterns, true));
             map.put (":time-patterns", toLispPlist (time_patterns, true));
 
-            Boolean                      date_part_first = null;
-            Map <List <String>, String>  separators      = new LinkedHashMap <> ();
+            Map <List <String>, Boolean>  date_part_first            = new LinkedHashMap <> ();
+            Map <List <String>, String>   constant_strings_per_style = new LinkedHashMap <> ();
 
             for (FormatStyle date_style : FormatStyle.values ()) {
                 for (FormatStyle time_style : FormatStyle.values ()) {
-                    String  date_pattern      = DateTimeFormatterBuilder.getLocalizedDateTimePattern (date_style, null,       chronology, locale);
-                    String  time_pattern      = DateTimeFormatterBuilder.getLocalizedDateTimePattern (null,       time_style, chronology, locale);
-                    String  date_time_pattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern (date_style, time_style, chronology, locale);
-
-                    if (date_part_first == null)
-                        date_part_first = date_time_pattern.startsWith (date_pattern);
-
-                    String  separator = null;
-
-                    if (date_part_first && date_time_pattern.startsWith (date_pattern) && date_time_pattern.endsWith (time_pattern))
-                        separator = date_time_pattern.substring (date_pattern.length (), date_time_pattern.length () - time_pattern.length ());
-                    else if (!date_part_first && date_time_pattern.startsWith (time_pattern) && date_time_pattern.endsWith (date_pattern))
-                        separator = date_time_pattern.substring (time_pattern.length (), date_time_pattern.length () - date_pattern.length ());
-                    else {
-                        throw new IllegalStateException (String.format ("cannot determine separator:\n  locale: %s\n  date-time: %s\n  date: %s\n  time: %s",
-                                                                        locale.toLanguageTag (), date_time_pattern, date_pattern, time_pattern));
-                    }
-
                     List <String>  key = new ArrayList <> ();
                     for (FormatStyle style : new FormatStyle[] { date_style, time_style })
                         key.add (style == FormatStyle.SHORT ? ":short" : style == FormatStyle.MEDIUM ? ":medium" : style == FormatStyle.LONG ? ":long" : ":full");
 
-                    separators.put (key, separator);
+                    String  date_pattern      = DateTimeFormatterBuilder.getLocalizedDateTimePattern (date_style, null,       chronology, locale);
+                    String  time_pattern      = DateTimeFormatterBuilder.getLocalizedDateTimePattern (null,       time_style, chronology, locale);
+                    String  date_time_pattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern (date_style, time_style, chronology, locale);
+                    int     at_1              = date_time_pattern.indexOf (date_pattern);
+                    int     at_2              = date_time_pattern.indexOf (time_pattern);
+                    int     length_1          = date_pattern.length ();
+                    int     length_2          = time_pattern.length ();
+
+                    if (at_1 < 0 || at_2 < 0 || (at_1 <= at_2 && at_1 + date_pattern.length () > at_2) || (at_2 <= at_1 && at_2 + time_pattern.length () > at_1)) {
+                        throw new IllegalStateException (String.format ("cannot rebuild date-time pattern:\n  locale: %s\n  date-time: %s\n  date: %s\n  time: %s",
+                                                                        locale.toLanguageTag (), date_time_pattern, date_pattern, time_pattern));
+                    }
+
+                    date_part_first.put (key, at_1 < at_2);
+
+                    if (at_1 > at_2) {
+                        int  temp = at_1;
+                        at_1      = at_2;
+                        at_2      = temp;
+                        length_1  = time_pattern.length ();
+                        length_2  = date_pattern.length ();
+                    }
+
+                    String  constant_strings = quoteString (date_time_pattern.substring (at_1 + length_1, at_2));
+
+                    if (at_1 > 0 || at_2 + length_2 < date_time_pattern.length ()) {
+                        constant_strings = toLispList (Arrays.asList (quoteString (date_time_pattern.substring (0, at_1)),
+                                                                      constant_strings,
+                                                                      quoteString (date_time_pattern.substring (at_2 + length_2))));
+                    }
+
+                    constant_strings_per_style.put (key, constant_strings);
                 }
             }
 
-            if (separators.values ().stream ().distinct ().collect (Collectors.counting ()) == 1)
-                map.put (":date-time-pattern-rule", String.format ("(%s . %s)", date_part_first ? "t" : "nil", quoteString (separators.values ().stream ().distinct ().findFirst ().get ())));
-            else
-                map.put (":date-time-pattern-rule", String.format ("(%s . %s)", date_part_first ? "t" : "nil", toLispAlist (separators, (key) -> toLispList (key), (value) -> quoteString ((String) value))));
+            if (date_part_first.values ().stream ().distinct ().collect (Collectors.counting ()) == 1) {
+                boolean  date_part_always_first = date_part_first.values ().stream ().distinct ().findFirst ().get ();
+                if (constant_strings_per_style.values ().stream ().distinct ().collect (Collectors.counting ()) == 1)
+                    map.put (":date-time-pattern-rule", String.format ("(%s . %s)", date_part_always_first ? "t" : "nil", constant_strings_per_style.values ().stream ().distinct ().findFirst ().get ()));
+                else
+                    map.put (":date-time-pattern-rule", String.format ("(%s . %s)", date_part_always_first ? "t" : "nil", toLispAlist (constant_strings_per_style, (key) -> toLispList (key), String::valueOf)));
+            }
+            else {
+                for (List <String> key : date_part_first.keySet ())
+                    constant_strings_per_style.put (key, String.format ("(%s . %s)", date_part_first.get (key) ? "t" : "nil", constant_strings_per_style.get (key)));
+
+                map.put (":date-time-pattern-rule", toLispAlist (constant_strings_per_style, (key) -> toLispList (key), String::valueOf));
+            }
         }
 
         for (Locale locale : locales) {

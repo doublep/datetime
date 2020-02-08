@@ -1529,20 +1529,30 @@ Returned pattern is always of type \\\='java.
 
 This function exists not just for completeness: while in most
 cases the result is just corresponding date and time patterns
-separated by a space, for a few locales it is different."
+separated by a space, for quite a few locales it is different."
   (unless date-variant
     (setq date-variant :medium))
   (unless time-variant
     (setq time-variant date-variant))
-  (let* ((date-time-pattern-rule (or (datetime-locale-field locale :date-time-pattern-rule) '(t . " ")))
-         (separator              (cdr date-time-pattern-rule))
-         (date-part              (datetime-locale-date-pattern locale date-variant))
-         (time-part              (datetime-locale-time-pattern locale time-variant)))
-    (unless (stringp separator)
-      (setq separator (cdr (assoc (list date-variant time-variant) separator))))
-    (if (car date-time-pattern-rule)
-        (concat date-part separator time-part)
-      (concat time-part separator date-part))))
+  ;; Some ugly parsing of compressed data follows; see the harvesting tool.
+  (let* ((date-part              (datetime-locale-date-pattern locale date-variant))
+         (time-part              (datetime-locale-time-pattern locale time-variant))
+         (date-time-pattern-rule (or (datetime-locale-field locale :date-time-pattern-rule) '(t . " ")))
+         (date-part-first        (car date-time-pattern-rule))
+         constant-strings)
+    (if (consp date-part-first)
+        (let ((style-data (cdr (assoc (list date-variant time-variant) date-time-pattern-rule))))
+          (setq date-part-first  (car style-data)
+                constant-strings (cdr style-data)))
+      (unless (stringp (setq constant-strings (cdr date-time-pattern-rule)))
+        (setq constant-strings (cdr (assoc (list date-variant time-variant) constant-strings)))))
+    (if (stringp constant-strings)
+        (if date-part-first
+            (concat date-part constant-strings time-part)
+          (concat time-part constant-strings date-part))
+      (if date-part-first
+          (concat (nth 0 constant-strings) date-part (nth 1 constant-strings) time-part (nth 2 constant-strings))
+        (concat (nth 0 constant-strings) time-part (nth 1 constant-strings) date-part (nth 2 constant-strings))))))
 
 
 (defconst datetime--english-eras  ["BC" "AD"])
@@ -1590,14 +1600,14 @@ Supported fields:
 This version will be incremented each time locale database of the
 package is updated.  It can be used e.g. to invalidate caches you
 create based on locales `datetime' knows about."
-  2)
+  3)
 
 (defun datetime-timezone-database-version ()
   "Return timezone database version, a simple integer.
 This version will be incremented each time timezone database of the
 package is updated.  It can be used e.g. to invalidate caches you
 create based on timezone `datetime' knows about and their rules."
-  2)
+  3)
 
 
 (provide 'datetime)

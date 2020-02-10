@@ -1,11 +1,7 @@
-# Not really Java, but we need it either way and Elisp is not
-# understood by Travis.
-language: java
-dist: trusty
+language: nix
 
-install:
-  - curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/travis-eldev-and-evm > x.sh && source ./x.sh
-  - evm install $EVM_EMACS --use
+jdk:
+  - openjdk11
 
 # Testing code doesn't work on pre-25 Emacses even though the library
 # itself probably works on 24.x.  The reason is `make-process', which
@@ -14,15 +10,16 @@ install:
 # on Travis Java programs write some crap about _JAVA_OPTIONS to
 # stderr).  Don't care much.
 env:
-  - EVM_EMACS=emacs-25.1-travis
-  - EVM_EMACS=emacs-25.2-travis
-  - EVM_EMACS=emacs-25.3-travis
-  - EVM_EMACS=emacs-26.1-travis
-  - EVM_EMACS=emacs-26.2-travis
-  - EVM_EMACS=emacs-26.3-travis
+  - EMACS_CI=emacs-25-1
+  - EMACS_CI=emacs-25-2
+  - EMACS_CI=emacs-25-3
+  - EMACS_CI=emacs-26-1
+  - EMACS_CI=emacs-26-2
+  - EMACS_CI=emacs-26-3
 
-jdk:
-  - openjdk11
+install:
+  - bash <(curl https://raw.githubusercontent.com/purcell/nix-emacs-ci/master/travis-install)
+  - curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/travis-eldev > x.sh && source ./x.sh
 
 script:
   - eldev -p -dtT test --expect 20

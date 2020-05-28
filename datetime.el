@@ -100,10 +100,9 @@
 ;;
 ;;   minute (NUMBER)
 ;;   second (NUMBER)
-;;   millisecond (NUMBER)
 ;;   second-fractional (NUMBER)
-;;       this is a generalization used internally: (second-fractional . 3)
-;;       means millis, (second-fractional . 6) -- micros, and so on;
+;;       parts of a second: (second-fractional . 3) means millis,
+;;       (second-fractional . 6) -- micros, and so on;
 ;;
 ;;   decimal-separator (PREFERRED)
 ;;       either dot or comma;
@@ -346,23 +345,22 @@ form:
                        (?e (if (<= num-repetitions 2)
                                (cons 'weekday num-repetitions)
                              (cons 'weekday-context-name (if (>= num-repetitions 4) 'full 'abbreviated))))
-                       (?w (cons 'week-in-year     num-repetitions))
-                       (?W (cons 'week-in-month    num-repetitions))
-                       (?D (cons 'day-in-year      num-repetitions))
-                       (?d (cons 'day-in-month     num-repetitions))
-                       (?F (cons 'weekday-in-month num-repetitions))
-                       (?u (cons 'weekday          num-repetitions))
-                       (?H (cons 'hour-0-23        num-repetitions))
-                       (?k (cons 'hour-1-24        num-repetitions))
-                       (?K (cons 'hour-am-pm-0-11  num-repetitions))
-                       (?h (cons 'hour-am-pm-1-12  num-repetitions))
-                       (?m (cons 'minute           num-repetitions))
-                       (?s (cons 'second           num-repetitions))
-                       (?S (cons (if (plist-get options :second-fractional-extension) 'second-fractional 'millisecond)
-                                 num-repetitions))
-                       (?z (cons 'timezone         'general))
-                       (?Z (cons 'timezone         'rfc-822))
-                       (?X (cons 'timezone         'iso-8601))
+                       (?w (cons 'week-in-year      num-repetitions))
+                       (?W (cons 'week-in-month     num-repetitions))
+                       (?D (cons 'day-in-year       num-repetitions))
+                       (?d (cons 'day-in-month      num-repetitions))
+                       (?F (cons 'weekday-in-month  num-repetitions))
+                       (?u (cons 'weekday           num-repetitions))
+                       (?H (cons 'hour-0-23         num-repetitions))
+                       (?k (cons 'hour-1-24         num-repetitions))
+                       (?K (cons 'hour-am-pm-0-11   num-repetitions))
+                       (?h (cons 'hour-am-pm-1-12   num-repetitions))
+                       (?m (cons 'minute            num-repetitions))
+                       (?s (cons 'second            num-repetitions))
+                       (?S (cons 'second-fractional num-repetitions))
+                       (?z (cons 'timezone          'general))
+                       (?Z (cons 'timezone          'rfc-822))
+                       (?X (cons 'timezone          'iso-8601))
                        (_
                         (error "Illegal pattern character `%c'" character)))
                      parts))
@@ -376,6 +374,7 @@ form:
     (nreverse parts)))
 
 (defun datetime--format-java-pattern (parts options)
+  (ignore options)
   (let ((case-fold-search nil)
         strings)
     (dolist (part parts)
@@ -423,10 +422,7 @@ form:
                           (`minute            (cons ?m details))
                           (`second            (cons ?s details))
                           (`decimal-separator details)
-                          (`millisecond       (cons ?S details))
-                          (`second-fractional (if (plist-get options :second-fractional-extension)
-                                                  (cons ?S details)
-                                                (error "`second-fractional' extension is not enabled")))
+                          (`second-fractional (cons ?S details))
                           (`am-pm             "a")
                           (_                  (error "Unexpected part type %s" type)))))
           (push (cond ((integerp string)
@@ -604,10 +600,10 @@ to this function.
              (setq need-time t)
              (push (datetime--digits-format details) format-parts)
              (push `(mod time 60) format-arguments))
-            ((or `millisecond `second-fractional)
+            (`second-fractional
              (setq need-time t)
              (push (datetime--digits-format details) format-parts)
-             (let ((scale (if (eq type 'millisecond) 1000 (expt 10 details))))
+             (let ((scale (expt 10 details)))
                (push `(mod (* time ,scale) ,scale) format-arguments)))
             (`timezone
              (signal 'datetime-unsupported-timezone nil))
@@ -971,8 +967,6 @@ unless specified otherwise.
                                                    (push part-index second-part-indices))
                                                   59)
                           (`decimal-separator    (rx (or "." ",")))
-                          (`millisecond          (push (cons part-index 1000.0) second-fractional-part-indices)
-                                                 (rx (any "0-9") (any "0-9") (any "0-9")))
                           (`second-fractional    (push (cons part-index (expt 10.0 details)) second-fractional-part-indices)
                                                  (apply #'concat (make-list details (rx (any "0-9")))))
                           (`timezone
@@ -1304,7 +1298,7 @@ specified otherwise.
                           (`minute               59)
                           (`second               59)
                           (`decimal-separator    (rx (or "." ",")))
-                          ((or `millisecond `second-fractional)
+                          (`second-fractional
                            (apply #'concat (make-list details (rx (any "0-9")))))
                           (`timezone
                            (signal 'datetime-unsupported-timezone nil))
@@ -1346,18 +1340,16 @@ perform several transformations on the same pattern.
 
 Options can be a list of the following keyword arguments:
 
-  :second-fractional-extension
-
-    In Java patterns any number of \"S\" stands for milliseconds.
-    With this extension they are instead interpreted according to
-    how many \"S\" there is, e.g. \"SSSSSS\" means microseconds.
-
   :any-decimal-separator
 
     Treat a decimal dot or comma in pattern between seconds and
     milli- or microseconds (etc.) as a placeholder for _any_
     decimal separator and also accept commas in this place.  This
-    only works if TO is \\='parsed."
+    only works if TO is \\='parsed.
+
+  :second-fractional-extension
+
+    Obsolete since 0.6.6: this is now always enabled."
   (datetime--format-pattern to (datetime--parse-pattern from pattern options) options))
 
 
@@ -1399,7 +1391,7 @@ options can affect result of this function."
 OPTIONS are passed to `datetime-recode-pattern'.  Currently no
 options can affect result of this function."
   (datetime--pattern-includes-p type pattern options
-                                am-pm hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12 minute second millisecond second-fractional))
+                                am-pm hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12 minute second second-fractional))
 
 (defun datetime-pattern-includes-era-p (type pattern &rest options)
   "Determine if PATTERN includes the date era.
@@ -1469,23 +1461,21 @@ options can affect result of this function."
 
 OPTIONS are passed to `datetime-recode-pattern'.  Currently no
 options can affect result of this function."
-  (datetime--pattern-includes-p type pattern options millisecond second-fractional))
+  (datetime--pattern-includes-p type pattern options second-fractional))
 
 (define-obsolete-function-alias 'datetime-pattern-includes-millisecond-p 'datetime-pattern-includes-second-fractionals-p)
 
 (defun datetime-pattern-num-second-fractionals (type pattern &rest options)
-  "Determine if PATTERN includes fractions of seconds.
-
-OPTIONS are passed to `datetime-recode-pattern'.  At least
-`:second-fractional-extension' can affect result of this
-function."
+  "Determine number of second fractional digits in the PATTERN.
+E.g. if PATTERN includes milliseconds, result will be 3, for
+microseconds it will be 6 and so on.  OPTIONS are passed to
+`datetime-recode-pattern'."
   (let ((parts           (datetime--parse-pattern type pattern options))
         (num-fractionals 0))
     (while parts
       (let ((part (pop parts)))
         (when (consp part)
           (pcase (car part)
-            (`millisecond       (setq num-fractionals (max num-fractionals 3)))
             (`second-fractional (setq num-fractionals (max num-fractionals (cdr part))))))))
     num-fractionals))
 

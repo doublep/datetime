@@ -24,7 +24,7 @@
 (defun datetime--~= (a b &optional epsilon)
   (when (and a b)
     (unless (<= (abs (- a b)) (or epsilon 0.0000001))
-      (message "Error of %s" (funcall (datetime-float-formatter 'java "HH:mm:ss.SSSSSS" :second-fractional-extension t) (abs (- a b))))))
+      (message "Error of %s" (funcall (datetime-float-formatter 'java "HH:mm:ss.SSSSSS") (abs (- a b))))))
   (if (and a b)
       (<= (abs (- a b)) (or epsilon 0.0000001))
     (not (or a b))))

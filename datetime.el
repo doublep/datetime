@@ -216,7 +216,7 @@ form:
         (or (when datetime-locale
               (if (extmap-contains-key datetime--locale-extmap datetime-locale)
                   datetime-locale
-                (warn "Locale `%S' (value of `datetime-locale' variable) is not known")
+                (warn "Locale `%S' (value of `datetime-locale' variable) is not known" datetime-locale)
                 nil))
             (let ((system-locale (or (getenv "LC_ALL") (getenv "LC_TIME") (getenv "LANG")))
                   as-symbol)
@@ -235,7 +235,7 @@ form:
         (or (when datetime-timezone
               (if (extmap-contains-key datetime--timezone-extmap datetime-timezone)
                   datetime-timezone
-                (warn "Timezone `%S' (value of `datetime-timezone' variable) is not known")
+                (warn "Timezone `%S' (value of `datetime-timezone' variable) is not known" datetime-timezone)
                 nil))
             (datetime--determine-system-timezone))
       (or timezone 'UTC))))

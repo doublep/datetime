@@ -1,7 +1,7 @@
 [![License: GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.txt)
 [![MELPA Stable](http://stable.melpa.org/packages/datetime-badge.svg)](http://stable.melpa.org/#/datetime)
 [![MELPA](http://melpa.org/packages/datetime-badge.svg)](http://melpa.org/#/datetime)
-[![Build Status](https://secure.travis-ci.com/doublep/datetime.png)](http://travis-ci.com/doublep/datetime)
+[![Build Status](https://api.travis-ci.com/doublep/datetime.svg)](http://travis-ci.com/doublep/datetime)
 
 
 # datetime

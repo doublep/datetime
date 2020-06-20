@@ -1,6 +1,6 @@
 ;;; -*- lexical-binding: t -*-
 
-;; Copyright (C) 2018-2019 Paul Pogonyshev
+;; Copyright (C) 2018-2020 Paul Pogonyshev
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -56,9 +56,8 @@
     (dolist (locale (datetime-list-locales t))
       (dolist (variant '(:short :medium :long :full))
         (let ((pattern (datetime-locale-date-time-pattern locale variant)))
-          (unless (datetime-pattern-includes-timezone-p 'java pattern)
-            (datetime--test-set-up-formatter 'UTC locale pattern
-              (datetime--test-formatter now))))))))
+          (datetime--test-set-up-formatter 'UTC locale pattern
+            (datetime--test-formatter now)))))))
 
 (ert-deftest datetime-test-formatting-various-timestamps-1 ()
   (datetime--test-set-up-formatter 'UTC 'en "yyyy-MM-dd HH:mm:ss.SSS"
@@ -114,3 +113,9 @@
   (datetime--test-set-up-formatter 'Australia/Hobart 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Rule-based transition on 2014-10-05.
     (datetime--test-formatter-around-transition 1412438400)))
+
+(ert-deftest datetime-test-formatting-with-timezone-name-1 ()
+  (datetime--test-set-up-formatter 'Europe/Berlin 'en "yyyy-MM-dd HH:mm:ss z"
+    ;; Rule-based transition on 2014-10-26.  Should also result in
+    ;; timezone name changing between CEST and CET.
+    (datetime--test-formatter-around-transition 1414285200)))

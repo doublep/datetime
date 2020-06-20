@@ -40,12 +40,22 @@
   :collect        ":data"
   (datetime--build-extmap target "--timezones"))
 
-(defun datetime--build-extmap (target &rest command-line)
+(eldev-defbuilder datetime-builder-timezone-name-data-extmap (source target)
+  :short-name     "TZ-NAMES"
+  :message        target
+  :source-files   "/dev/HarvestData.class"
+  :targets        "timezone-name-data.extmap"
+  :collect        ":data"
+  (datetime--build-extmap target "--timezone-names" :share-values t :compress-values t))
+
+(defun datetime--build-extmap (target command-line &rest extmap-flags)
   (require 'extmap)
-  (eldev-call-process "java" `("-cp" "dev" "HarvestData" ,@command-line)
+  (eldev-trace "Collecting data using the Java helper...")
+  (eldev-call-process "java" `("-cp" "dev" "HarvestData" ,@(eldev-listify command-line))
     (unless (= exit-code 0)
       (signal 'eldev-error `("`HarvestData' tool exited with error code %d: %s" ,exit-code ,(buffer-string))))
-    (extmap-from-alist target (eldev-read-wholly (buffer-string) "`HarvestData' output") :overwrite t)))
+    (eldev-trace "Building an extmap out of it...")
+    (apply #'extmap-from-alist target (eldev-read-wholly (buffer-string) "`HarvestData' output") :overwrite t extmap-flags)))
 
 
 ;; Before testing we need to compile `test/ProcessTimestamp.java'.

@@ -43,7 +43,7 @@ public class ProcessTimestamp
             switch (command) {
             case "format":
                 System.out.println (DateTimeFormatter.ofPattern (pattern, locale)
-                                    .format (LocalDateTime.ofInstant (Instant.ofEpochSecond ((long) Math.floor (timestamp),
+                                    .format (ZonedDateTime.ofInstant (Instant.ofEpochSecond ((long) Math.floor (timestamp),
                                                                                              (int) Math.floor ((timestamp - Math.floor (timestamp))  * 1_000_000_000)),
                                                                       timezone)));
                 break;
@@ -53,6 +53,7 @@ public class ProcessTimestamp
                                                      .parseCaseInsensitive ()
                                                      // Commented out since it triggers bugs in obscure locales in Java.
                                                      // We don't use this for testing anyway.
+                                                     // See: https://bugs.openjdk.java.net/browse/JDK-8211306
                                                      // .parseLenient ()  
                                                      .appendPattern (pattern));
 

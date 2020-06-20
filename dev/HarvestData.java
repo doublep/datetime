@@ -24,26 +24,48 @@ public class HarvestData
 
         if (Arrays.asList (args).contains ("--timezones"))
             printTimezoneData ();
+
+        if (Arrays.asList (args).contains ("--timezone-names"))
+            printTimezoneNameData ();
     }
+
+
+    protected static List <Locale> getAllLocales ()
+    {
+        List <Locale>  locales = new ArrayList <> (Arrays.asList (Locale.getAvailableLocales ()));
+
+        locales.removeIf ((locale) -> {
+                // This way we discard a few locales that can otherwise lead to duplicate keys
+                // because of use of toLanguageTag().  E.g. `no_NO_NY' is problematic.
+                if (locale.getVariant ().length () > 0)
+                    return true;
+
+                if (!Chronology.ofLocale (locale).getId ().equals ("ISO")) {
+                    // Ignore such locales for now.
+                    return true;
+                }
+
+                return false;
+            });
+
+        locales.sort ((a, b) -> a.toLanguageTag ().compareToIgnoreCase (b.toLanguageTag ()));
+        return locales;
+    }
+
+    protected static List <ZoneId> getAllTimezones ()
+    {
+        List <ZoneId>  timezones = ZoneId.getAvailableZoneIds ().stream ().map ((id) -> ZoneId.of (id)).collect (Collectors.toList ());
+        timezones.sort ((a, b) -> a.getId ().compareToIgnoreCase (b.getId ()));
+        return timezones;
+    }
+
 
     protected static void printLocaleData () throws Exception
     {
-        List <Locale>  locales = new ArrayList <> (Arrays.asList (Locale.getAvailableLocales ()));
-        locales.sort ((a, b) -> a.toLanguageTag ().compareToIgnoreCase (b.toLanguageTag ()));
-
         Map <Locale, Map <String, String>>  data = new LinkedHashMap <> ();
 
-        for (Locale locale : locales) {
-            // This way we discard a few locales that can otherwise lead to duplicate keys
-            // because of use of toLanguageTag().  E.g. `no_NO_NY' is problematic.
-            if (locale.getVariant ().length () > 0)
-                continue;
-
+        for (Locale locale : getAllLocales ()) {
             Chronology  chronology = Chronology.ofLocale (locale);
-            if (!chronology.getId ().equals ("ISO")) {
-                // Ignore such locales for now.
-                continue;
-            }
 
             Map <String, String>  map = new LinkedHashMap <> ();
             data.put (locale, map);
@@ -135,10 +157,8 @@ public class HarvestData
             }
         }
 
-        for (Locale locale : locales) {
-            if (data.containsKey (locale))
-                removeUnnecessaryLocaleData (data, locale);
-        }
+        for (Locale locale : getAllLocales ())
+            removeUnnecessaryLocaleData (data, locale);
 
         System.out.println ("(");
         for (Map.Entry <Locale, Map <String, String>> entry : data.entrySet ())
@@ -177,7 +197,7 @@ public class HarvestData
     protected static void removeUnnecessaryLocaleData (Map <Locale, Map <String, String>> data, Locale locale)
     {
         Map <String, String>  locale_data = data.get (locale);
-        Locale                parent = new Locale (locale.getLanguage ());
+        Locale                parent      = new Locale (locale.getLanguage ());
         Map <String, String>  parent_data;
 
         if (Objects.equals (locale, parent))
@@ -218,14 +238,12 @@ public class HarvestData
             locale_data.remove (main_key);
     }
 
+
     protected static void printTimezoneData () throws Exception
     {
-        List <ZoneId>  timezones = ZoneId.getAvailableZoneIds ().stream ().map ((id) -> ZoneId.of (id)).collect (Collectors.toList ());
-        timezones.sort ((a, b) -> a.getId ().compareToIgnoreCase (b.getId ()));
-
         Map <ZoneId, List <Object>>  data = new LinkedHashMap <> ();
 
-        for (ZoneId timezone : timezones) {
+        for (ZoneId timezone : getAllTimezones ()) {
             ZoneRules  rules = timezone.getRules ();
 
             if (rules.isFixedOffset ())
@@ -246,13 +264,19 @@ public class HarvestData
                 for (ZoneOffsetTransition transition : transitions) {
                     int  year_offset = (int) ((transition.getInstant ().getEpochSecond () - base) / AVERAGE_SECONDS_IN_YEAR);
                     if ((transition.getInstant ().getEpochSecond () + 1 - base) % AVERAGE_SECONDS_IN_YEAR < 1)
-                        System.err.println (String.format ("*Warning*: timezone '%s', offset transition at %s would be a potential rounding error", timezone.getId (), transition.getInstant ()));
+                        System.err.printf ("*Warning*: timezone '%s', offset transition at %s would be a potential rounding error\n", timezone.getId (), transition.getInstant ());
 
                     while (year_offset >= transition_data.size ())
                         transition_data.add (new ArrayList <> (Arrays.asList (last_offset)));
 
                     transition_data.get (year_offset).add (transition.getInstant ().getEpochSecond () - (base + year_offset * AVERAGE_SECONDS_IN_YEAR));
-                    transition_data.get (year_offset).add (last_offset = transition.getOffsetAfter ().getTotalSeconds ());
+                    last_offset = transition.getOffsetAfter ().getTotalSeconds ();
+
+                    // Floating-point offset is our internal mark of a transition to DST.
+                    // Java is over-eager to convert ints to float for us, so we format
+                    // them as strings manually now and add '.0' if appropriate.
+                    boolean  to_dst = !Objects.equals (transition.getOffsetAfter (), rules.getStandardOffset (transition.getInstant ()));
+                    transition_data.get (year_offset).add (String.format (to_dst ? "%d.0" : "%d", last_offset));
                 }
 
                 List <Object>  transition_rule_data = new ArrayList <> ();
@@ -288,6 +312,9 @@ public class HarvestData
                     rule.put (":before", String.valueOf (transition_rule.getOffsetBefore ().getTotalSeconds ()));
                     rule.put (":after",  String.valueOf (transition_rule.getOffsetAfter  ().getTotalSeconds ()));
 
+                    if (!Objects.equals (transition_rule.getOffsetAfter (), transition_rule.getStandardOffset ()))
+                        rule.put (":dst", "t");
+
                     transition_rule_data.add (toLispPlist (rule, false));
                 }
 
@@ -305,6 +332,141 @@ public class HarvestData
             System.out.format ("(%s\n %s)\n", entry.getKey (), entry.getValue ().stream ().map (String::valueOf).collect (Collectors.joining ("\n ")));
         System.out.println (")");
     }
+
+
+    protected static void printTimezoneNameData () throws Exception
+    {
+        Map <Locale, Map <String, String[]>>  data = new LinkedHashMap <> ();
+
+        for (Locale locale : getAllLocales ()) {
+            Map <String, String[]>  map = new LinkedHashMap <> ();
+
+            DateTimeFormatter  abbreviation_retriever = DateTimeFormatter.ofPattern ("z",    locale);
+            DateTimeFormatter  full_name_retriever    = DateTimeFormatter.ofPattern ("zzzz", locale);
+
+            for (ZoneId timezone : getAllTimezones ()) {
+                ZonedDateTime  dummy_date = ZonedDateTime.ofInstant (Instant.ofEpochSecond (0), timezone);
+                String[]       names      = new String[] { abbreviation_retriever.format (dummy_date), null,
+                                                           full_name_retriever   .format (dummy_date), null };
+                ZoneRules      rules      = timezone.getRules ();
+
+
+                if (!rules.isFixedOffset ()) {
+                    // They are probably already ordered, but I cannot find a confirmation in
+                    // the documentation.
+                    List <ZoneOffsetTransition>  transitions = new ArrayList <> (rules.getTransitions ());
+                    transitions.sort ((a, b) -> a.getInstant ().compareTo (b.getInstant ()));
+
+                    Instant  switch_to_dst = null;
+                    for (ZoneOffsetTransition transition : transitions) {
+                        if (rules.isDaylightSavings (transition.getInstant ()) && !rules.isDaylightSavings (Instant.ofEpochSecond (transition.getInstant ().getEpochSecond () - 1))) {
+                            switch_to_dst = transition.getInstant ();
+                            break;
+                        }
+                    }
+
+                    // I would give a warning, but this seems to be a frequent occasion.
+                    // Maybe it's supposed to be like that.
+                    if (switch_to_dst != null) {
+                        ZonedDateTime  dst = ZonedDateTime.ofInstant (switch_to_dst, timezone);
+                        ZonedDateTime  std = ZonedDateTime.ofInstant (Instant.ofEpochSecond (switch_to_dst.getEpochSecond () - 1), timezone);
+
+                        names = new String[] { abbreviation_retriever.format (std),
+                                               abbreviation_retriever.format (dst),
+                                               full_name_retriever   .format (std),
+                                               full_name_retriever   .format (dst) };
+
+                        if (Objects.equals (names[0], names[1]) && Objects.equals (names[2], names[3])) {
+                            // Another not quite understandable, but frequent thing.
+                            // There seem to also be some timezone/locale pairs where
+                            // abbreviations match, but full names don't.  Those we
+                            // ignore.
+                            names[1] = names[3] = null;
+                        }
+                    }
+                }
+
+                map.put (timezone.getId (), names);
+            }
+
+            data.put (locale, map);
+        }
+
+        for (Locale locale : getAllLocales ())
+            removeUnnecessaryTimezoneNameData (data, locale);
+
+        // Many timezones in Java are broken in that instants formatted/parsed in them get
+        // shifted around.  Not much we can do about this, but at least we'll keep the
+        // list internally so that we can avoid testing in them.
+        List <String>      broken    = new ArrayList <> ();
+        DateTimeFormatter  formatter = DateTimeFormatter.ofPattern ("yyyy-MM-dd HH:mm:ss z");
+        Instant[]          check_at  = { Instant.from (formatter.parse ("2020-01-01 00:00:00 UTC")),
+                                         Instant.from (formatter.parse ("2020-07-01 00:00:00 UTC")) };
+
+        for (ZoneId timezone : getAllTimezones ()) {
+            if (Arrays.stream (check_at)
+                .anyMatch ((instant) -> !Objects.equals (instant, Instant.from (formatter.parse (formatter.format (ZonedDateTime.ofInstant (instant, timezone)))))))
+                broken.add (timezone.getId ());
+        }
+
+        System.out.println ("(");
+
+        for (Map.Entry <Locale, Map <String, String[]>> entry : data.entrySet ()) {
+            Map <String, String>  values = new LinkedHashMap <> ();
+            for (Map.Entry <String, String[]> name_entry : entry.getValue ().entrySet ()) {
+                String[]  names = name_entry.getValue ();
+
+                // See description of fallbacks in `datetime.el'.
+                values.put (name_entry.getKey (), (names[0] != null || names[1] != null
+                                                   ? (names[3] != null
+                                                      ? String.format ("[%s %s %s %s]", quoteString (names[0]), quoteString (names[1]), quoteString (names[2]), quoteString (names[3]))
+                                                      : String.format ("[%s %s]",       quoteString (names[0]),                         quoteString (names[2])))
+                                                   : (names[3] != null
+                                                      ? String.format ("(%s . %s)", quoteString (names[2]), quoteString (names[3]))
+                                                      : quoteString (names[2]))));
+            }
+
+            System.out.println (toLispPlist (entry.getKey ().toLanguageTag (), values, false));
+        }
+
+        if (!broken.isEmpty ()) {
+            broken.add (0, ":broken");
+            System.out.println (toLispList (broken));
+        }
+
+        System.out.println (")");
+    }
+
+    protected static void removeUnnecessaryTimezoneNameData (Map <Locale, Map <String, String[]>> data, Locale locale)
+    {
+        if (Objects.equals (locale, Locale.ENGLISH))
+            return;
+
+        Map <String, String[]>  locale_data  = data.get (locale);
+        Map <String, String[]>  english_data = data.get (Locale.ENGLISH);
+        Locale                  parent       = new Locale (locale.getLanguage ());
+        Map <String, String[]>  parent_data;
+
+        if (Objects.equals (locale, parent))
+            parent_data = Collections.emptyMap ();
+        else {
+            removeUnnecessaryTimezoneNameData (data, parent);
+            parent_data = data.get (parent);
+        }
+
+        // Discard abbreviated names that match those for English locale and leave only
+        // the full names.
+        locale_data.entrySet ().stream ().forEach ((entry) -> {
+                String[]  names = entry.getValue ();
+                if (Objects.equals (names[0], english_data.get (entry.getKey ()) [0]) && Objects.equals (names[1], english_data.get (entry.getKey ()) [1]))
+                    names[0] = names[1] = null;
+            });
+
+        // Fall back to the parent locale where possible.
+        locale_data.entrySet ().removeIf ((entry) -> (Objects   .equals (entry.getValue (), english_data.get (entry.getKey ()))
+                                                      || Objects.equals (entry.getValue (), parent_data .get (entry.getKey ()))));
+    }
+
 
     protected static String toLispList (List <?> list)
     {
@@ -363,6 +525,7 @@ public class HarvestData
     {
         return string != null ? String.format ("\"%s\"", string.replaceAll ("\\\\", "\\\\").replaceAll ("\"", "\\\"")) : "nil";
     }
+
 
     protected static boolean isLeapYear (int year)
     {

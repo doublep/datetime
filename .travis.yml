@@ -1,7 +1,7 @@
 language: nix
 
 jdk:
-  - openjdk11
+  - openjdk14
 
 # Testing code doesn't work on pre-25 Emacses even though the library
 # itself probably works on 24.x.  The reason is `make-process', which

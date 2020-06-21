@@ -448,7 +448,7 @@ public class HarvestData
         Map <String, String[]>  parent_data;
 
         if (Objects.equals (locale, parent))
-            parent_data = Collections.emptyMap ();
+            parent_data = english_data;
         else {
             removeUnnecessaryTimezoneNameData (data, parent);
             parent_data = data.get (parent);
@@ -458,13 +458,15 @@ public class HarvestData
         // the full names.
         locale_data.entrySet ().stream ().forEach ((entry) -> {
                 String[]  names = entry.getValue ();
-                if (Objects.equals (names[0], english_data.get (entry.getKey ()) [0]) && Objects.equals (names[1], english_data.get (entry.getKey ()) [1]))
+
+                // First clause is important for locales like `en-US', for example.
+                if (!Arrays.equals (names, english_data.get (entry.getKey ()))
+                    && Objects.equals (names[0], english_data.get (entry.getKey ()) [0]) && Objects.equals (names[1], english_data.get (entry.getKey ()) [1]))
                     names[0] = names[1] = null;
             });
 
         // Fall back to the parent locale where possible.
-        locale_data.entrySet ().removeIf ((entry) -> (Objects   .equals (entry.getValue (), english_data.get (entry.getKey ()))
-                                                      || Objects.equals (entry.getValue (), parent_data .get (entry.getKey ()))));
+        locale_data.entrySet ().removeIf ((entry) -> Arrays.equals (entry.getValue (), parent_data.getOrDefault (entry.getKey (), english_data.get (entry.getKey ()))));
     }
 
 

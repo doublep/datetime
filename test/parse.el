@@ -55,11 +55,11 @@
                                                        (+ time 7200) (- time 7200)))))  ; two hours
 
 
-(ert-deftest datetime-test-parsing-now ()
+(ert-deftest datetime-parsing-now ()
   (datetime--test-set-up-parser 'UTC 'en "yyyy-MM-dd HH:mm:ss.SSS"
     (datetime--test-parser (datetime--test 'format (float-time)))))
 
-(ert-deftest datetime-test-parsing-now-standard-formats ()
+(ert-deftest datetime-parsing-now-standard-formats ()
   (let ((now (float-time)))
     (dolist (locale (datetime-list-locales t))
       (dolist (variant '(:short :medium :long :full))
@@ -68,62 +68,62 @@
             (datetime--test-set-up-parser 'UTC locale pattern
               (datetime--test-parser (datetime--test 'format now)))))))))
 
-(ert-deftest datetime-test-parsing-various-timestamps-1 ()
+(ert-deftest datetime-parsing-various-timestamps-1 ()
   (datetime--test-set-up-parser 'UTC 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-parser (datetime--test 'format (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000))))))
 
-(ert-deftest datetime-test-parsing-various-timestamps-with-fixed-offset-timezone-1 ()
+(ert-deftest datetime-parsing-various-timestamps-with-fixed-offset-timezone-1 ()
   (datetime--test-set-up-parser 'Etc/GMT+1 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-parser (datetime--test 'format (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000))))))
 
-(ert-deftest datetime-test-parsing-various-timestamps-with-shifting-timezone-1 ()
+(ert-deftest datetime-parsing-various-timestamps-with-shifting-timezone-1 ()
   (datetime--test-set-up-parser 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-parser (datetime--test 'format (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000))))))
 
-(ert-deftest datetime-test-parsing-various-timestamps-with-shifting-timezone-2 ()
+(ert-deftest datetime-parsing-various-timestamps-with-shifting-timezone-2 ()
   (datetime--test-set-up-parser 'America/Anchorage 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-parser (datetime--test 'format (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000))))))
 
-(ert-deftest datetime-test-parsing-various-timestamps-with-shifting-timezone-3 ()
+(ert-deftest datetime-parsing-various-timestamps-with-shifting-timezone-3 ()
   (datetime--test-set-up-parser 'Australia/Hobart 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-parser (datetime--test 'format (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000))))))
 
-(ert-deftest datetime-test-parsing-text-1 ()
+(ert-deftest datetime-parsing-text-1 ()
   (datetime--test-set-up-parser 'UTC 'en "'on' EEEE 'the' d MMMM 'of' yyyy G, 'at' h:mm:ss a"
     ;; Roughly from 1200 BC till 5100 AD with 6 and a half year step.
     (datetime--test-parser (datetime--test 'format (mapcar (lambda (k) (* k 200000000.123)) (number-sequence -500 500))))))
 
-(ert-deftest datetime-test-parsing-around-offset-transition-1 ()
+(ert-deftest datetime-parsing-around-offset-transition-1 ()
   (datetime--test-set-up-parser 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; First historical transition.
     (datetime--test-parser-around-transition -2177452800)))
 
-(ert-deftest datetime-test-parsing-around-offset-transition-2 ()
+(ert-deftest datetime-parsing-around-offset-transition-2 ()
   (datetime--test-set-up-parser 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Rule-based transition on 2010-03-25.
     (datetime--test-parser-around-transition 1269738000)))
 
-(ert-deftest datetime-test-parsing-around-offset-transition-3 ()
+(ert-deftest datetime-parsing-around-offset-transition-3 ()
   (datetime--test-set-up-parser 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Future transition on 2480-10-27 (according to the rules as of 2018).
     (datetime--test-parser-around-transition 16119997200)))
 
-(ert-deftest datetime-test-parsing-around-offset-transition-4 ()
+(ert-deftest datetime-parsing-around-offset-transition-4 ()
   (datetime--test-set-up-parser 'America/Anchorage 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Rule-based transition on 2009-03-08.
     (datetime--test-parser-around-transition 1236510000)))
 
-(ert-deftest datetime-test-parsing-around-offset-transition-5 ()
+(ert-deftest datetime-parsing-around-offset-transition-5 ()
   (datetime--test-set-up-parser 'Australia/Hobart 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Rule-based transition on 2014-10-05.
     (datetime--test-parser-around-transition 1412438400)))
 
-(ert-deftest datetime-test-parser-validating-1 ()
+(ert-deftest datetime-parser-validating-1 ()
   (datetime--test-set-up-parser 'UTC 'en "yyyy-MM-dd HH:mm:ss.SSS"
     (should-error (funcall datetime--test-parser "lol") :type 'datetime-invalid-string)
     (should-error (funcall datetime--test-parser "2000-00-01 00:00:00.000") :type 'datetime-invalid-string)
@@ -134,7 +134,7 @@
     (should-error (funcall datetime--test-parser "2000-01-01 00:60:00.000") :type 'datetime-invalid-string)
     (should-error (funcall datetime--test-parser "2000-01-01 00:00:60.000") :type 'datetime-invalid-string)))
 
-(ert-deftest datetime-test-parser-validating-excessive-patterns ()
+(ert-deftest datetime-parser-validating-excessive-patterns ()
   (datetime--test-set-up-parser 'UTC 'en "dd 'of' MMMM '(month' M')'"
     (datetime--test-parser "12 of March (month 3)")
     (should-error (funcall datetime--test-parser "12 of March (month 1)") :type 'datetime-invalid-string)))

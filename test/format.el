@@ -47,11 +47,11 @@
                                   (+ time 7200) (- time 7200))))  ; two hours
 
 
-(ert-deftest datetime-test-formatting-now ()
+(ert-deftest datetime-formatting-now ()
   (datetime--test-set-up-formatter 'UTC 'en "yyyy-MM-dd HH:mm:ss.SSS"
     (datetime--test-formatter (float-time))))
 
-(ert-deftest datetime-test-formatting-now-standard-formats ()
+(ert-deftest datetime-formatting-now-standard-formats ()
   (let ((now (float-time)))
     (dolist (locale (datetime-list-locales t))
       (dolist (variant '(:short :medium :long :full))
@@ -59,62 +59,62 @@
           (datetime--test-set-up-formatter 'UTC locale pattern
             (datetime--test-formatter now)))))))
 
-(ert-deftest datetime-test-formatting-various-timestamps-1 ()
+(ert-deftest datetime-formatting-various-timestamps-1 ()
   (datetime--test-set-up-formatter 'UTC 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-formatter (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000)))))
 
-(ert-deftest datetime-test-formatting-various-timestamps-with-fixed-offset-timezone-1 ()
+(ert-deftest datetime-formatting-various-timestamps-with-fixed-offset-timezone-1 ()
   (datetime--test-set-up-formatter 'Etc/GMT+1 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-formatter (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000)))))
 
-(ert-deftest datetime-test-formatting-various-timestamps-with-shifting-timezone-1 ()
+(ert-deftest datetime-formatting-various-timestamps-with-shifting-timezone-1 ()
   (datetime--test-set-up-formatter 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-formatter (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000)))))
 
-(ert-deftest datetime-test-formatting-various-timestamps-with-shifting-timezone-2 ()
+(ert-deftest datetime-formatting-various-timestamps-with-shifting-timezone-2 ()
   (datetime--test-set-up-formatter 'America/Anchorage 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-formatter (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000)))))
 
-(ert-deftest datetime-test-formatting-various-timestamps-with-shifting-timezone-3 ()
+(ert-deftest datetime-formatting-various-timestamps-with-shifting-timezone-3 ()
   (datetime--test-set-up-formatter 'Australia/Hobart 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Roughly from 400 AD till 3500 AD with 4 month step.
     (datetime--test-formatter (mapcar (lambda (k) (* k 10000000.123)) (number-sequence -5000 5000)))))
 
-(ert-deftest datetime-test-formatting-text-1 ()
+(ert-deftest datetime-formatting-text-1 ()
   (datetime--test-set-up-formatter 'UTC 'en "'on' EEEE 'the' d MMMM 'of' yyyy G, 'at' h:mm:ss a"
     ;; Roughly from 1200 BC till 5100 AD with 6 and a half year step.
     (datetime--test-formatter (mapcar (lambda (k) (* k 200000000.123)) (number-sequence -500 500)))))
 
-(ert-deftest datetime-test-formatting-around-offset-transition-1 ()
+(ert-deftest datetime-formatting-around-offset-transition-1 ()
   (datetime--test-set-up-formatter 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; First historical transition.
     (datetime--test-formatter-around-transition -2177452800)))
 
-(ert-deftest datetime-test-formatting-around-offset-transition-2 ()
+(ert-deftest datetime-formatting-around-offset-transition-2 ()
   (datetime--test-set-up-formatter 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Rule-based transition on 2010-03-25.
     (datetime--test-formatter-around-transition 1269738000)))
 
-(ert-deftest datetime-test-formatting-around-offset-transition-3 ()
+(ert-deftest datetime-formatting-around-offset-transition-3 ()
   (datetime--test-set-up-formatter 'Europe/Madrid 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Future transition on 2480-10-27 (according to the rules as of 2018).
     (datetime--test-formatter-around-transition 16119997200)))
 
-(ert-deftest datetime-test-formatting-around-offset-transition-4 ()
+(ert-deftest datetime-formatting-around-offset-transition-4 ()
   (datetime--test-set-up-formatter 'America/Anchorage 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Rule-based transition on 2009-03-08.
     (datetime--test-formatter-around-transition 1236510000)))
 
-(ert-deftest datetime-test-formatting-around-offset-transition-5 ()
+(ert-deftest datetime-formatting-around-offset-transition-5 ()
   (datetime--test-set-up-formatter 'Australia/Hobart 'en "yyyy-MM-dd HH:mm:ss.SSS"
     ;; Rule-based transition on 2014-10-05.
     (datetime--test-formatter-around-transition 1412438400)))
 
-(ert-deftest datetime-test-formatting-with-timezone-name-1 ()
+(ert-deftest datetime-formatting-with-timezone-name-1 ()
   (datetime--test-set-up-formatter 'Europe/Berlin 'en "yyyy-MM-dd HH:mm:ss z"
     ;; Rule-based transition on 2014-10-26.  Should also result in
     ;; timezone name changing between CEST and CET.

@@ -138,3 +138,11 @@
   (datetime--test-set-up-parser 'UTC 'en "dd 'of' MMMM '(month' M')'"
     (datetime--test-parser "12 of March (month 3)")
     (should-error (funcall datetime--test-parser "12 of March (month 1)") :type 'datetime-invalid-string)))
+
+
+(ert-deftest datetime-parsing-future-timestamp-1 ()
+  ;; Real failure: would cause an exception on certain timezones
+  ;; without transition rules (e.g. `Africa/Algiers').
+  (dolist (timezone (datetime-list-timezones))
+    (datetime--test-set-up-parser timezone 'en "yyyy-MM-dd HH:mm:ss"
+      (datetime--test-parser '("2100-01-01 00:00:00")))))

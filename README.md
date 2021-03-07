@@ -95,6 +95,14 @@ Note that if you plan to format result of `float-time` function, you
 need to pass `'system` as `:timezone` option to
 `datetime-float-formatter`: default timezone is UTC.
 
+Starting with version 0.7 the library partially supports formatting
+timezone names: `z` and `zzzz` in Java patterns can be used to format
+abbreviated of full names.  For example:
+
+    (let ((formatter (datetime-float-formatter 'java "HH:mm:ss z"
+                                               :timezone 'system)))
+      (funcall formatter (float-time)))
+
 
 ## Matching timestamps
 
@@ -144,6 +152,8 @@ documented within Emacs.
 * `datetime-locale-time-pattern`
 * `datetime-locale-date-time-pattern`
 * `datetime-locale-field`
+* `datetime-locale-timezone-name`
 
 * `datetime-locale-database-version`
 * `datetime-timezone-database-version`
+* `datetime-timezone-name-database-version`

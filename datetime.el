@@ -1521,7 +1521,7 @@ OPTIONS are passed to `datetime-recode-pattern'.  Currently no
 options can affect result of this function."
   (datetime--pattern-includes-p type pattern options second-fractional))
 
-(define-obsolete-function-alias 'datetime-pattern-includes-millisecond-p 'datetime-pattern-includes-second-fractionals-p)
+(define-obsolete-function-alias 'datetime-pattern-includes-millisecond-p 'datetime-pattern-includes-second-fractionals-p "0.6.1")
 
 (defun datetime-pattern-num-second-fractionals (type pattern &rest options)
   "Determine number of second fractional digits in the PATTERN.

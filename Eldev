@@ -1,6 +1,8 @@
 ; -*- mode: emacs-lisp; lexical-binding: t -*-
 
-(eldev-use-package-archive 'melpa-stable)
+(eldev-require-version "0.5")
+
+(eldev-use-package-archive 'melpa)
 
 (push "/*.extmap" eldev-files-to-package)
 

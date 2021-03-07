@@ -1689,7 +1689,7 @@ create based on timezones `datetime' knows about and their rules.
 
 Locale-specific timezone names are contained in a different
 database.  See `datetime-timezone-name-database-version'."
-  5)
+  6)
 
 (defun datetime-timezone-name-database-version ()
   "Return timezone name database version, a simple integer.
@@ -1702,7 +1702,7 @@ Other locale-specific data as well as locale-independent data
 about timezones is contained in different databases.  See
 `datetime-locale-database-version' and
 `datetime-timezone-database-version'."
-  1)
+  2)
 
 
 (provide 'datetime)

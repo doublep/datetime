@@ -1,9 +1,10 @@
 name: Check for updates
 
 on:
-  schedule:
-    # Check at 03:40 on Fridays, i.e. once a week.
-    - cron: '40 3 * * 5'
+  # Disabled as always wanting to update 'timezone-name-data.extmap' for now.
+  # schedule:
+  #   # Check at 03:40 on Fridays, i.e. once a week.
+  #   - cron: '40 3 * * 5'
   workflow_dispatch:
 
 jobs:

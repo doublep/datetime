@@ -1,0 +1,44 @@
+name: Check for updates
+
+on:
+  schedule:
+    # Check at 03:40 on Fridays, i.e. once a week.
+    - cron: '40 3 * * 5'
+
+jobs:
+  check-for-updates:
+    runs-on: ubuntu-latest
+    emacs_version: '27.2'
+
+    steps:
+    - name: Set up Emacs
+      uses: purcell/setup-emacs@master
+      with:
+        version: ${{matrix.emacs_version}}
+
+    - name: Install Eldev
+      run: curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/github-eldev | sh
+
+    - name: Install Java
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'zulu'
+        java-version: '14'
+
+    - name: Check out the source code
+      uses: actions/checkout@v2
+
+    - name: Check if 'extmap' files are up-to-date
+      # I haven't found any good way to send a notification from a
+      # GitHub workflow.  Apparently, we can only let it fail if there
+      # is something to say, and let notification recipients find it
+      # out from the logs.  Also run tests so that it is immediately
+      # visible if something is broken by the changes.
+      run: |
+        java --version
+        eldev -dtT -C build *.extmap --force --set dev
+        if test -n "$(git status --porcelain)"; then
+            eldev -p -dtT -C test --expect 20
+            git status
+            false
+        fi

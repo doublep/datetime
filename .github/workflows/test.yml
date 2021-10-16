@@ -2,32 +2,21 @@ name: CI
 
 on:
   push:
-    paths-ignore:
-      - '**.md'
+    paths-ignore: ['**.md', '**.adoc']
   pull_request:
-    paths-ignore:
-      - '**.md'
+    paths-ignore: ['**.md', '**.adoc']
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    continue-on-error: ${{matrix.allow_failures}}
+    continue-on-error: ${{matrix.emacs_version == 'snapshot'}}
 
     strategy:
       matrix:
-        emacs_version:
-          - 25.1
-          - 25.2
-          - 25.3
-          - 26.1
-          - 26.2
-          - 26.3
-
-        allow_failures: [false]
-
-        include:
-          - emacs_version: snapshot
-            allow_failures: true
+        emacs_version: ['25.1', '25.2', '25.3',
+                        '26.1', '26.2', '26.3',
+                        '27.1', '27.2',
+                        'snapshot']
 
     steps:
     - name: Set up Emacs
@@ -39,8 +28,9 @@ jobs:
       run: curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/github-eldev | sh
 
     - name: Install Java
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@v2
       with:
+        distribution: 'zulu'
         java-version: '14'
 
     - name: Check out the source code

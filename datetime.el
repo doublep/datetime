@@ -1702,7 +1702,7 @@ Other locale-specific data as well as locale-independent data
 about timezones is contained in different databases.  See
 `datetime-locale-database-version' and
 `datetime-timezone-database-version'."
-  2)
+  3)
 
 
 (provide 'datetime)

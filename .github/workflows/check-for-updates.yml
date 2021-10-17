@@ -1,11 +1,10 @@
 name: Check for updates
 
 on:
-  # Disabled as always wanting to update 'timezone-name-data.extmap' for now.
-  # schedule:
-  #   # Check at 03:40 on Fridays, i.e. once a week.
-  #   - cron: '40 3 * * 5'
   workflow_dispatch:
+  # Check at 03:40 on Fridays, i.e. once a week.
+  schedule:
+  - cron: '40 3 * * 5'
 
 jobs:
   check-for-updates:
@@ -40,10 +39,31 @@ jobs:
       # out from the logs.  Also run tests so that it is immediately
       # visible if something is broken by the changes.
       run: |
+        for file in *.extmap; do
+            cp $file $file.old;
+        done
+
         java --version
         eldev -dtT -C build *.extmap --force --set dev
-        if test -n "$(git status --porcelain)"; then
+
+        num_updated=0
+        updated_maps=""
+
+        for file in *.extmap; do
+            if [ $(eldev --quiet eval "(not (extmap-equal-p \"$file.old\" \"$file\" '(:broken)))") != $(echo "nil") ]; then
+                echo
+                echo "Comparing '$file.old' vs. '$file' (i.e. with the new version being the second map):"
+                eldev --quiet exec "(not (extmap-equal-p \"$file.old\" \"$file\" '(:broken) t))"
+                num_updated=$(expr $num_updated + 1)
+                updated_maps="$updated_maps$file "
+            fi
+        done
+
+        if [ $num_updated -gt 0 ]; then
+            echo
+            echo "Re-running tests with the updated maps:"
             eldev -p -dtT -C test --expect 20
-            git status
+            echo
+            echo "Map(s) that should be regenerated: $updated_maps"
             false
         fi

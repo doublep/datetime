@@ -4,7 +4,7 @@
 
 ;; Author:     Paul Pogonyshev <pogonyshev@gmail.com>
 ;; Maintainer: Paul Pogonyshev <pogonyshev@gmail.com>
-;; Version:    0.7.1
+;; Version:    0.7.2
 ;; Keywords:   lisp, i18n
 ;; Homepage:   https://github.com/doublep/datetime
 ;; Package-Requires: ((emacs "24.4") (extmap "1.1.1"))

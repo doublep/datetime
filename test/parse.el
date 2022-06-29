@@ -146,3 +146,16 @@
   (dolist (timezone (datetime-list-timezones))
     (datetime--test-set-up-parser timezone 'en "yyyy-MM-dd HH:mm:ss"
       (datetime--test-parser '("2100-01-01 00:00:00")))))
+
+
+(ert-deftest datetime-parsing-run-together-1 ()
+  ;; Real failure: run-together digit groups in the pattern would confuse the parser, see
+  ;; https://github.com/doublep/datetime/issues/6.
+  (dolist (timezone (datetime-list-timezones))
+    (datetime--test-set-up-parser timezone 'en "yyyyMMdd"
+      (datetime--test-parser '("20220506")))))
+
+(ert-deftest datetime-parsing-run-together-2 ()
+  (dolist (timezone (datetime-list-timezones))
+    (datetime--test-set-up-parser timezone 'en "yyyyMMddHHmmss"
+      (datetime--test-parser '("20220506123000")))))

@@ -4,7 +4,7 @@
 
 (eldev-use-package-archive 'melpa)
 
-(push "/*.extmap" eldev-files-to-package)
+(setf eldev-files-to-package `(:or ,eldev-files-to-package "/*.extmap"))
 
 ;; You can run `eldev build -sdev' to compile the development tool.
 (push '(dev . "/dev") eldev-filesets)

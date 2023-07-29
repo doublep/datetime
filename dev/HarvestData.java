@@ -81,6 +81,7 @@ public class HarvestData
             map.put (":weekday-standalone-abbr",  toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccc",  1, 7)));
             map.put (":weekday-standalone-names", toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "cccc", 1, 7)));
             map.put (":am-pm",                    toLispVector (getNames (locale, ChronoField.AMPM_OF_DAY,   "a",    0, 1)));
+            map.put (":day-periods",              findDayPeriodData (locale));
 
             Map <String, String>  date_patterns = toPatternPlist ((style) -> DateTimeFormatterBuilder.getLocalizedDateTimePattern (style, null, chronology, locale));
             Map <String, String>  time_patterns = toPatternPlist ((style) -> DateTimeFormatterBuilder.getLocalizedDateTimePattern (null, style, chronology, locale));
@@ -194,6 +195,45 @@ public class HarvestData
         return names;
     }
 
+    protected static String findDayPeriodData (Locale locale)
+    {
+        var            time       = LocalDateTime.of (2001, 1, 1, 0, 0, 0);
+        var            formatters = List.of (DateTimeFormatter.ofPattern ("B",     locale),
+                                             DateTimeFormatter.ofPattern ("BBBB",  locale),
+                                             DateTimeFormatter.ofPattern ("BBBBB", locale));
+        List <String>  strings    = null;
+        var            periods    = new ArrayList <List <String>> ();
+        var            thresholds = new ArrayList <Integer> ();
+
+        // It seems the thresholds are not exposed, so we find them like this.
+        for (int minute = 0; minute < 24 * 60; minute++, time = time.plusMinutes (1)) {
+            var  time_       = time;
+            var  new_strings = formatters.stream ().map ((formatter) -> formatter.format (time_)).toList ();
+
+            if (!Objects.equals (new_strings, strings)) {
+                periods.add (new_strings);
+                if (minute > 0)
+                    thresholds.add (minute);
+
+                strings = new_strings;
+            }
+        }
+
+        var  data = new LinkedHashMap <String, String> ();
+
+        data.put (":thresholds", toLispList (thresholds));
+        data.put (":short",      toLispVector (periods.stream ().map ((strings_) -> strings_.get (0)).toList (), true));
+        data.put (":full",       toLispVector (periods.stream ().map ((strings_) -> strings_.get (1)).toList (), true));
+        data.put (":narrow",     toLispVector (periods.stream ().map ((strings_) -> strings_.get (2)).toList (), true));
+
+        if (Objects.equals (data.get (":full"), data.get (":short")))
+            data.remove (":full");
+        if (Objects.equals (data.get (":narrow"), data.get (":short")))
+            data.remove (":narrow");
+
+        return toLispPlist (data, false);
+    }
+
     protected static void removeUnnecessaryLocaleData (Map <Locale, Map <String, String>> data, Locale locale)
     {
         Map <String, String>  locale_data = data.get (locale);
@@ -212,6 +252,7 @@ public class HarvestData
         removeForFallback1 (locale_data, parent_data, ":decimal-separator",      "?.");
         removeForFallback1 (locale_data, parent_data, ":eras",                   ENGLISH_ERAS);
         removeForFallback1 (locale_data, parent_data, ":am-pm",                  ENGLISH_AM_PM);
+        removeForFallback1 (locale_data, parent_data, ":day-periods",            null);
         removeForFallback1 (locale_data, parent_data, ":date-time-pattern-rule", "(t . \" \")");
 
         removeForFallback2 (locale_data, parent_data, ":month-standalone-abbr",    ":month-context-abbr");

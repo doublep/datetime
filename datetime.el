@@ -92,6 +92,7 @@
 ;;   weekday-standalone-name (full | abbreviated)
 ;;
 ;;   am-pm (full | abbreviated)
+;;   day-period (short | full | narrow)
 ;;
 ;;   hour-0-23 (NUMBER)
 ;;   hour-1-24 (NUMBER)
@@ -140,6 +141,8 @@
 ;;   - `:eras' and `:am-pm' default to English version;
 ;;   - month/dayweek standalone abbreviations or names default to
 ;;     the corresponding context-aware property;
+;;   - for day period strings, both `:full' and `:narrow' variants
+;;     fall back to `:short';
 ;;   - date-time patterns are not stored, instead they are built from
 ;;     date and time parts for that locale; corresponding field is a
 ;;     cons with car determining what should be in the beginning (t
@@ -381,6 +384,11 @@ form:
                        (?k (cons 'hour-1-24         num-repetitions))
                        (?K (cons 'hour-am-pm-0-11   num-repetitions))
                        (?h (cons 'hour-am-pm-1-12   num-repetitions))
+                       (?B (cons 'day-period        (pcase num-repetitions
+                                                      (1 :short)
+                                                      (4 :full)
+                                                      (5 :narrow)
+                                                      (_ (error "Pattern character `%c' must come in exactly 1, 4 or 5 repetitions" character)))))
                        (?m (cons 'minute            num-repetitions))
                        (?s (cons 'second            num-repetitions))
                        (?S (cons 'second-fractional num-repetitions))
@@ -454,6 +462,11 @@ form:
                           (`decimal-separator details)
                           (`second-fractional (cons ?S details))
                           (`am-pm             "a")
+                          (`day-period        (pcase details
+                                                (:short  "B")
+                                                (:full   "BBBB")
+                                                (:narrow "BBBBB")
+                                                (_       (error "Unexpected details for `%s' part: %s" type details))))
                           (_                  (error "Unexpected part type %s" type)))))
           (push (cond ((integerp string)
                        (string string))
@@ -505,6 +518,14 @@ form:
                                                       (dolist (month-days (append datetime--gregorian-month-days nil))
                                                         (push (setq days (+ days month-days)) result))
                                                       (apply #'vector (nreverse result))))
+
+;; FIXME: Maybe use binary lookup or something?  Not terribly important.
+(defsubst datetime--day-period-index (thresholds minute)
+  (let ((index 0))
+    (while (and thresholds (<= (car thresholds) minute))
+      (setq thresholds (cdr thresholds)
+            index      (1+ index)))
+    index))
 
 
 (defsubst datetime--digits-format (num-repetitions)
@@ -616,6 +637,13 @@ to this function.
              (setq need-hour t)
              (push "%s" format-parts)
              (push `(aref ,(datetime-locale-field locale :am-pm) (if (>= hour 12) 1 0)) format-arguments))
+            (`day-period
+             (setq need-time t)
+             (push "%s" format-parts)
+             (let* ((day-period-data (datetime-locale-field locale :day-periods))
+                    (thresholds      (plist-get day-period-data :thresholds))
+                    (strings         (or (plist-get day-period-data details) (plist-get day-period-data :short))))
+               (push `(aref ,strings (datetime--day-period-index ',thresholds (/ time 60))) format-arguments)))
             ((or `hour-0-23 `hour-1-24 `hour-am-pm-0-11 `hour-am-pm-1-12)
              (setq need-hour t)
              (push (datetime--digits-format details) format-parts)
@@ -950,6 +978,7 @@ unless specified otherwise.
          month-name-part-indices
          day-of-month-part-indices
          am-pm-part-indices
+         day-period-part-indices
          hour-0-23-part-indices
          hour-1-24-part-indices
          hour-am-pm-1-12-part-indices
@@ -1006,6 +1035,10 @@ unless specified otherwise.
                         (`am-pm                (when (or validating (null am-pm-part-indices))
                                                  (push part-index am-pm-part-indices))
                                                (datetime-locale-field locale :am-pm))
+                        (`day-period           (when (or validating (null day-period-part-indices))
+                                                 (push part-index day-period-part-indices))
+                                               (let ((day-period-data (datetime-locale-field locale :day-periods)))
+                                                 (or (plist-get day-period-data details) (plist-get day-period-data :short))))
                         (`hour-0-23            (when (or validating (null hour-0-23-part-indices))
                                                  (push part-index hour-0-23-part-indices))
                                                23)
@@ -1075,6 +1108,7 @@ unless specified otherwise.
           month-name-part-indices        (nreverse month-name-part-indices)
           day-of-month-part-indices      (nreverse day-of-month-part-indices)
           am-pm-part-indices             (nreverse am-pm-part-indices)
+          day-period-part-indices        (nreverse day-period-part-indices)
           hour-0-23-part-indices         (nreverse hour-0-23-part-indices)
           hour-1-24-part-indices         (nreverse hour-1-24-part-indices)
           hour-am-pm-1-12-part-indices   (nreverse hour-am-pm-1-12-part-indices)
@@ -1098,7 +1132,7 @@ unless specified otherwise.
     (let* ((regexp-parts            regexp-parts)
            (substituting-indices-in (list era-part-indices
                                           year-part-indices month-number-part-indices month-name-part-indices day-of-month-part-indices
-                                          am-pm-part-indices
+                                          am-pm-part-indices day-period-part-indices
                                           hour-0-23-part-indices hour-1-24-part-indices hour-am-pm-1-12-part-indices hour-am-pm-0-11-part-indices
                                           minute-part-indices second-part-indices second-fractional-part-indices))
            (part-index              0)
@@ -1140,6 +1174,7 @@ unless specified otherwise.
            (am-pm-computation  (or (datetime--parser-computation pattern "am-pm" validating nil nil (am-pm-part-indices (datetime--parser-string-if-computation locale :am-pm downcased 0 12) t))
                                    (plist-get 'am-pm 0)
                                    0))
+           (_day-period-computation)  ;; FIXME: Write; currently not validated for consistency with actual time.
            (hour-computation   (or (datetime--parser-computation pattern "hour" validating nil 23
                                                                  (hour-0-23-part-indices datetime--parser-int-computation)
                                                                  (hour-1-24-part-indices datetime--parser-hour-1-24-computation)
@@ -1368,6 +1403,9 @@ specified otherwise.
                            (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-standalone-abbr :weekday-standalone-names)))
                           (`am-pm
                            (datetime-locale-field locale :am-pm))
+                          (`day-period
+                           (let ((day-period-data (datetime-locale-field locale :day-periods)))
+                             (or (plist-get day-period-data details) (plist-get day-period-data :short))))
                           (`hour-0-23            23)
                           (`hour-1-24            24)
                           (`hour-am-pm-0-11      11)
@@ -1468,7 +1506,7 @@ options can affect result of this function."
 OPTIONS are passed to `datetime-recode-pattern'.  Currently no
 options can affect result of this function."
   (datetime--pattern-includes-p type pattern options
-                                am-pm hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12 minute second second-fractional))
+                                am-pm day-period hour-0-23 hour-1-24 hour-am-pm-0-11 hour-am-pm-1-12 minute second second-fractional))
 
 (defun datetime-pattern-includes-era-p (type pattern &rest options)
   "Determine if PATTERN includes the date era.
@@ -1649,7 +1687,7 @@ Supported fields:
   :weekday-standalone-abbr
   :weekday-standalone-names
   :am-pm"
-  ;; Additionally `:date-patterns', `:time-patterns' and
+  ;; Additionally `:day-periods', `:date-patterns', `:time-patterns' and
   ;; `:date-time-pattern-rule' are supported for internal use.
   (let ((data (extmap-get datetime--locale-extmap locale t)))
     (or (datetime--do-get-locale-field data field)
@@ -1698,7 +1736,7 @@ create based on locales `datetime' knows about.
 
 Note that this database doesn't include timezone names.  See
 `datetime-timezone-name-database-version'."
-  4)
+  5)
 
 (defun datetime-timezone-database-version ()
   "Return timezone database version, a simple integer.
@@ -1708,7 +1746,7 @@ create based on timezones `datetime' knows about and their rules.
 
 Locale-specific timezone names are contained in a different
 database.  See `datetime-timezone-name-database-version'."
-  6)
+  7)
 
 (defun datetime-timezone-name-database-version ()
   "Return timezone name database version, a simple integer.
@@ -1721,7 +1759,7 @@ Other locale-specific data as well as locale-independent data
 about timezones is contained in different databases.  See
 `datetime-locale-database-version' and
 `datetime-timezone-database-version'."
-  3)
+  4)
 
 
 (provide 'datetime)

@@ -119,3 +119,15 @@
     ;; Rule-based transition on 2014-10-26.  Should also result in
     ;; timezone name changing between CEST and CET.
     (datetime--test-formatter-around-transition 1414285200)))
+
+(ert-deftest datetime-formatting-day-periods ()
+  (let (times)
+    (dotimes (minute (* 24 60))
+      (push (* minute 60) times))
+    (setf times (nreverse times))
+    (dolist (pattern '("HH:mm:ss B" "HH:mm:ss BBBB" "HH:mm:ss BBBBB"))
+      (datetime--test-set-up-formatter 'UTC 'en pattern
+        (datetime--test-formatter times)))))
+
+
+(provide 'test/format)

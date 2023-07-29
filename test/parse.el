@@ -159,3 +159,6 @@
   (dolist (timezone (datetime-list-timezones))
     (datetime--test-set-up-parser timezone 'en "yyyyMMddHHmmss"
       (datetime--test-parser '("20220506123000")))))
+
+
+(provide 'test/parse)

@@ -30,7 +30,7 @@ jobs:
         java-version: '17'
 
     - name: Check out the source code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Check if 'extmap' files are up-to-date
       # I haven't found any good way to send a notification from a

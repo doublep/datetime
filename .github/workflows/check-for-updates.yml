@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        emacs_version: ['27.2']
+        emacs_version: ['29.1']
 
     steps:
     - name: Set up Emacs

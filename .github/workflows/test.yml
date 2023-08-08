@@ -33,7 +33,7 @@ jobs:
         version: ${{matrix.emacs_version}}
 
     - name: Install Eldev
-      uses: emacs-eldev/setup-eldev@master
+      uses: emacs-eldev/setup-eldev@v1
 
     - name: Install Java
       uses: actions/setup-java@v3

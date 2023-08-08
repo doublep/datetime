@@ -16,12 +16,12 @@ jobs:
 
     steps:
     - name: Set up Emacs
-      uses: purcell/setup-emacs@master
+      uses: jcs090218/setup-emacs@master
       with:
         version: ${{matrix.emacs_version}}
 
     - name: Install Eldev
-      run: curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/github-eldev | sh
+      uses: emacs-eldev/setup-eldev@v1
 
     - name: Install Java
       uses: actions/setup-java@v3

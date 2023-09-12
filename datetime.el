@@ -798,7 +798,11 @@ to this function.
                                        day-of-month -1))
                    (offset-before   (plist-get rule :before)))
               (unless transitions
-                (push offset-before transitions))
+                ;; Preserve our DST "flag" across year boundary.
+                (push (if (floatp (car (last (aref all-year-transitions (1- year-offset)))))
+                          (float offset-before)
+                        offset-before)
+                      transitions))
               (when day-of-week
                 (let ((current-weekday (% (+ year-day (aref datetime--gregorian-first-day-of-year (mod year 400))) 7)))
                   (setq year-day (if (< day-of-month 0) (- year-day (mod (- day-of-week current-weekday) 7)) (+ year-day (mod (- day-of-week current-weekday) 7))))))

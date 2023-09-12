@@ -298,26 +298,52 @@ public class HarvestData
                 LocalDateTime         first           = LocalDateTime.ofInstant (transitions.get (0).getInstant (), ZoneOffset.UTC);
                 int                   base_year       = Year.of (first.get (ChronoField.YEAR)).getValue ();
                 long                  base            = Year.of (first.get (ChronoField.YEAR)).atDay (1).atStartOfDay ().toInstant (ZoneOffset.UTC).getEpochSecond ();
-                int                   last_offset     = transitions.get (0).getOffsetBefore ().getTotalSeconds ();
+                Offset                last_offset     = new Offset (transitions.get (0).getOffsetBefore ().getTotalSeconds (), false);
                 List <Object>         zone_data       = new ArrayList <> ();
                 List <List <Object>>  transition_data = new ArrayList <> ();
 
-                for (ZoneOffsetTransition transition : transitions) {
-                    int  year_offset = (int) ((transition.getInstant ().getEpochSecond () - base) / AVERAGE_SECONDS_IN_YEAR);
-                    if ((transition.getInstant ().getEpochSecond () + 1 - base) % AVERAGE_SECONDS_IN_YEAR < 1)
-                        System.err.printf ("*Warning*: timezone '%s', offset transition at %s would be a potential rounding error\n", timezone.getId (), transition.getInstant ());
+                for (int k = 0; k < transitions.size (); k++) {
+                    var  transition = transitions.get (k);
+                    var  instant    = transition.getInstant ();
+                    last_offset = addTransition (timezone, transition_data, instant, base, last_offset, transition.getOffsetAfter ());
 
-                    while (year_offset >= transition_data.size ())
-                        transition_data.add (new ArrayList <> (Arrays.asList (last_offset)));
+                    // Quite a few timezones have DST changes not covered by the exposed transitions (see
+                    // 'standardTransitions' in 'ZoneRules.java', no way to extract those without hacks).
+                    // Because of that, we'd sometimes use invalid DST/non-DST timezone name variant.  As a
+                    // workaround, we scan instants between subsequent "official" transitions with a day step
+                    // (should be more than enough) and check if DST changes.  If yes, we use binary search to
+                    // finally pinpoint the exact instant of the change.
+                    Instant  limit;
+                    if (k + 1 < transitions.size ())
+                        limit = transitions.get (k + 1).getInstant ();
+                    else if (rules.getTransitionRules ().isEmpty ())
+                        limit = instant.plusSeconds (86400 * 365 * 25);
+                    else
+                        continue;
 
-                    transition_data.get (year_offset).add (transition.getInstant ().getEpochSecond () - (base + year_offset * AVERAGE_SECONDS_IN_YEAR));
-                    last_offset = transition.getOffsetAfter ().getTotalSeconds ();
+                    while (true) {
+                        var  next = instant.plusSeconds (86400);
+                        if (!next.isBefore (limit))
+                            break;
 
-                    // Floating-point offset is our internal mark of a transition to DST.
-                    // Java is over-eager to convert ints to float for us, so we format
-                    // them as strings manually now and add '.0' if appropriate.
-                    boolean  to_dst = !Objects.equals (transition.getOffsetAfter (), rules.getStandardOffset (transition.getInstant ()));
-                    transition_data.get (year_offset).add (String.format (to_dst ? "%d.0" : "%d", last_offset));
+                        if (!Objects.equals (Offset.at (rules, next), last_offset)) {
+                            var  before = instant;
+                            var  after  = next;
+
+                            while (after.getEpochSecond () - before.getEpochSecond () > 1) {
+                                var  middle = Instant.ofEpochSecond ((after.getEpochSecond () + before.getEpochSecond ()) / 2);
+                                if (Objects.equals (Offset.at (rules, middle), last_offset))
+                                    before = middle;
+                                else
+                                    after = middle;
+                            }
+
+                            last_offset = addTransition (timezone, transition_data, after, base, last_offset, rules.getOffset (next));
+                            next        = after;
+                        }
+
+                        instant = next;
+                    }
                 }
 
                 List <Object>  transition_rule_data = new ArrayList <> ();
@@ -372,6 +398,22 @@ public class HarvestData
         for (Map.Entry <ZoneId, List <Object>> entry : data.entrySet ())
             System.out.format ("(%s\n %s)\n", entry.getKey (), entry.getValue ().stream ().map (String::valueOf).collect (Collectors.joining ("\n ")));
         System.out.println (")");
+    }
+
+    protected static Offset addTransition (ZoneId timezone, List <List <Object>> transition_data, Instant instant, long base, Offset last_offset, ZoneOffset new_offset)
+    {
+        int  year_offset = (int) ((instant.getEpochSecond () - base) / AVERAGE_SECONDS_IN_YEAR);
+        if ((instant.getEpochSecond () + 1 - base) % AVERAGE_SECONDS_IN_YEAR < 1)
+            System.err.printf ("*Warning*: timezone '%s', offset transition at %s would be a potential rounding error\n", timezone.getId (), instant);
+
+        while (year_offset >= transition_data.size ())
+            transition_data.add (new ArrayList <> (List.of (last_offset.toLisp ())));
+
+        transition_data.get (year_offset).add (instant.getEpochSecond () - (base + year_offset * AVERAGE_SECONDS_IN_YEAR));
+
+        last_offset = new Offset (new_offset.getTotalSeconds (), timezone.getRules ().isDaylightSavings (instant));
+        transition_data.get (year_offset).add (last_offset.toLisp ());
+        return last_offset;
     }
 
 
@@ -573,5 +615,22 @@ public class HarvestData
     protected static boolean isLeapYear (int year)
     {
         return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    }
+
+
+    protected static record Offset (int seconds, boolean dst)
+    {
+        public static Offset at (ZoneRules rules, Instant instant)
+        {
+            return new Offset (rules.getOffset (instant).getTotalSeconds (), rules.isDaylightSavings (instant));
+        }
+
+        // Floating-point offset is our internal Lisp-level mark of a transition to DST.
+        // Java is over-eager to convert ints to float for us, so we format them as
+        // strings manually now and add '.0' if appropriate.
+        public Object toLisp ()
+        {
+            return String.format (dst ? "%d.0" : "%d", seconds);
+        }
     }
 }

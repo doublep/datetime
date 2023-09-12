@@ -115,10 +115,32 @@
     (datetime--test-formatter-around-transition 1412438400)))
 
 (ert-deftest datetime-formatting-with-timezone-name-1 ()
-  (datetime--test-set-up-formatter 'Europe/Berlin 'en "yyyy-MM-dd HH:mm:ss z"
-    ;; Rule-based transition on 2014-10-26.  Should also result in
-    ;; timezone name changing between CEST and CET.
-    (datetime--test-formatter-around-transition 1414285200)))
+  (dolist (timezone (datetime-list-timezones))
+    (datetime--test-set-up-formatter timezone 'en "yyyy-MM-dd HH:mm:ss z"
+      ;; Rule-based transition on 2014-10-26.  In some timezones should also result in name
+      ;; changing, e.g. between CEST and CET.
+      (datetime--test-formatter-around-transition 1414285200))))
+
+(ert-deftest datetime-formatting-with-timezone-name-2 ()
+  ;; Many timezones had special relations with DST (see comments in 'HarvestData.java'), so
+  ;; resulting name varies a lot.  Make sure we handle all that correctly.  Too much to test all
+  ;; timezones, only some selected.
+  (dolist (timezone '(Africa/Algiers Africa/Tripoli Africa/Windhoek
+                      America/Anchorage America/Argentina/Buenos_Aires America/Argentina/Ushuaia America/Chihuahua America/Dawson America/Indiana/Knox America/Iqaluit America/Kentucky/Louisville America/Whitehorse
+                      Antarctica/McMurdo Antarctica/Palmer
+                      Asia/Almaty Asia/Ashkhabad Asia/Baku Asia/Bishkek Asia/Damascus Asia/Istanbul Asia/Kamchatka Asia/Omsk Asia/Singapore Asia/Tashkent Asia/Tbilisi Asia/Vladivostok Asia/Yerevan
+                      Atlantic/Azores
+                      Canada/Yukon
+                      Chile/EasterIsland
+                      Europe/Belfast Europe/Kaliningrad Europe/Lisbon Europe/Minsk Europe/Moscow Europe/Simferopol Europe/Tallinn Europe/Warsaw
+                      GB Libya NZ
+                      Pacific/Auckland Pacific/Norfolk
+                      Poland Portugal
+                      US/Alaska US/Aleutian US/Pacific
+                      W-SU))
+    (datetime--test-set-up-formatter timezone 'en "yyyy-MM-dd HH:mm:ss z"
+      ;; Exact numbers don't matter much, we just need to skip a few months each time.
+      (datetime--test-formatter (mapcar (lambda (k) (* k 7000000)) (number-sequence -300 400))))))
 
 (ert-deftest datetime-formatting-day-periods ()
   (let (times)

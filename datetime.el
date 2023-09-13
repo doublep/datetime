@@ -177,7 +177,8 @@
 (defvar datetime--pattern-formatters '((parsed . (lambda (parts options) parts))
                                        (java   . datetime--format-java-pattern)))
 
-(defvar datetime--last-conversion-was-in-dst nil)
+;; Floating-point offset is our internal mark of a transition to DST.
+(defvar datetime--last-conversion-offset nil)
 
 (defvar datetime--locale-timezone-name-lookup-cache nil)
 (defvar datetime--locale-timezone-name-lookup-cache-version 0)
@@ -676,7 +677,21 @@ to this function.
                   (if (string= name dst-name)
                       (push (datetime--format-escape-string name) format-parts)
                     (push "%s" format-parts)
-                    (push `(if datetime--last-conversion-was-in-dst ,dst-name ,name) format-arguments))))
+                    ;; See comments for the variable for explanation of `floatp'.
+                    (push `(if (floatp datetime--last-conversion-offset) ,dst-name ,name) format-arguments))))
+               (`rfc-822
+                (pcase timezone-data
+                  (`(,constant-offset)
+                   (push (format "%c%02d%02d"
+                                 (if (>= constant-offset 0) ?+ ?-)
+                                 (/ (abs constant-offset) (* 60 60))
+                                 (/ (mod (abs constant-offset) (* 60 60)) 60))
+                         format-parts))
+                  (_
+                   (push "%c%02d%02d" format-parts)
+                   (push `(if (>= datetime--last-conversion-offset 0) ?+ ?-) format-arguments)
+                   (push `(/ (abs (round datetime--last-conversion-offset)) (* 60 60)) format-arguments)
+                   (push `(/ (mod (abs (round datetime--last-conversion-offset)) (* 60 60)) 60) format-arguments))))
                (_
                 (signal 'datetime-unsupported-timezone details))))
             (_ (error "Unexpected value %s" type))))))
@@ -747,24 +762,21 @@ to this function.
 
 (defun datetime--convert-to-utc-float (date-time timezone-data)
   (let ((year-offset          (floor (/ (- date-time (car timezone-data)) datetime--average-seconds-in-year)))
-        (all-year-transitions (nth 1 timezone-data)))
+        (all-year-transitions (nth 1 timezone-data))
+        offset)
     (if (>= year-offset 0)
-        (let* ((year-transitions (or (when (< year-offset (length all-year-transitions))
-                                       (aref all-year-transitions year-offset))
-                                     (datetime--calculate-year-transitions timezone-data year-offset)))
-               (offset           (pop year-transitions)))
+        (let ((year-transitions (or (when (< year-offset (length all-year-transitions))
+                                      (aref all-year-transitions year-offset))
+                                    (datetime--calculate-year-transitions timezone-data year-offset))))
+          (setf offset (pop year-transitions))
           (when year-transitions
             (let ((offset-in-year (floor (- date-time (car timezone-data) (* year-offset datetime--average-seconds-in-year)))))
               (while (and (>= offset-in-year (car year-transitions))
-                          (setq offset           (cadr year-transitions)
-                                year-transitions (cddr year-transitions))))))
-          ;; Floating-point offset is our internal mark of a transition to DST.  Its value
-          ;; is really an integer anyway.
-          (setf datetime--last-conversion-was-in-dst (floatp offset))
-          (+ date-time offset))
+                          (setf offset           (cadr year-transitions)
+                                year-transitions (cddr year-transitions)))))))
       ;; Offset before the very first transition.
-      (setf datetime--last-conversion-was-in-dst nil)
-      (+ date-time (car (aref all-year-transitions 0))))))
+      (setf offset (car (aref all-year-transitions 0))))
+    (+ date-time (setf datetime--last-conversion-offset offset))))
 
 ;; 146097 is the value of `datetime--gregorian-days-in-400-years'.
 ;; `eval-when-compile' doesn't allow referring to the mnemonic name.

@@ -142,6 +142,11 @@
       ;; Exact numbers don't matter much, we just need to skip a few months each time.
       (datetime--test-formatter (mapcar (lambda (k) (* k 7000000)) (number-sequence -300 400))))))
 
+(ert-deftest datetime-formatting-with-timezone-name-3 ()
+  (dolist (timezone (datetime-list-timezones))
+    (datetime--test-set-up-formatter timezone 'en "yyyy-MM-dd HH:mm:ssZ"
+      (datetime--test-formatter-around-transition 1414285200))))
+
 (ert-deftest datetime-formatting-day-periods ()
   (let (times)
     (dotimes (minute (* 24 60))

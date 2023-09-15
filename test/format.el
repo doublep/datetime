@@ -142,10 +142,29 @@
       ;; Exact numbers don't matter much, we just need to skip a few months each time.
       (datetime--test-formatter (mapcar (lambda (k) (* k 7000000)) (number-sequence -300 400))))))
 
-(ert-deftest datetime-formatting-with-timezone-name-3 ()
+
+;; Spaces are included only for readability where needed.  They don't affect anything otherwise (or,
+;; rather, should affect the library and Java benchmark in the same way).
+(defvar datetime--test-offset-format-specifiers
+  '("Z" "ZZ" "ZZZ" " ZZZZ" "ZZZZZ"
+    " O" " OOOO"
+    "x" "xx" "xxx" "xxxx" "xxxxx"
+    "X" "XX" "XXX" "XXXX" "XXXXX"))
+
+(ert-deftest datetime-formatting-with-timezone-offset-1 ()
   (dolist (timezone (datetime-list-timezones))
-    (datetime--test-set-up-formatter timezone 'en "yyyy-MM-dd HH:mm:ssZ"
-      (datetime--test-formatter-around-transition 1414285200))))
+    (dolist (offset-format-specifier datetime--test-offset-format-specifiers)
+      (datetime--test-set-up-formatter timezone 'en (format "yyyy-MM-dd HH:mm:ss%s" offset-format-specifier)
+        (datetime--test-formatter-around-transition 1414285200)))))
+
+;; Test with offsets that include seconds.  This was true for most real timezones in ye older times.
+(ert-deftest datetime-formatting-with-timezone-offset-2 ()
+  (dolist (timezone '(Africa/Lusaka America/Asuncion Asia/Dushanbe Asia/Tehran Atlantic/Bermuda Australia/Sydney
+                      Brazil/East Canada/Pacific Europe/Athens Europe/Rome Europe/Zurich Indian/Antananarivo
+                      Mexico/General Pacific/Samoa US/Central))
+    (dolist (offset-format-specifier datetime--test-offset-format-specifiers)
+      (datetime--test-set-up-formatter timezone 'en (format "yyyy-MM-dd HH:mm:ss%s" offset-format-specifier)
+        (datetime--test-formatter -3000000000)))))
 
 (ert-deftest datetime-formatting-day-periods ()
   (let (times)

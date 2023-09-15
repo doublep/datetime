@@ -112,8 +112,8 @@
 ;;       abbreviated, full --- timezone name, as reported by Java
 ;;           (abbreviated is by far more useful, as full is too
 ;;           verbose for most usecases);
-;;       rfc-822, iso-8601 -- currently not supported further than
-;;           pattern parsing.
+;;       offset-* -- different representations of timezone (search
+;;           the source code for a full list) offset to GMT.
 
 
 (require 'extmap)
@@ -394,8 +394,24 @@ form:
                        (?s (cons 'second            num-repetitions))
                        (?S (cons 'second-fractional num-repetitions))
                        (?z (cons 'timezone          (if (>= num-repetitions 4) 'full 'abbreviated)))
-                       (?Z (cons 'timezone          'rfc-822))
-                       (?X (cons 'timezone          'iso-8601))
+                       (?O (cons 'timezone          (pcase num-repetitions
+                                                      (1 'offset-localized-short)
+                                                      (4 'offset-localized-full)
+                                                      (_ (error "Pattern character `%c' must come in exactly 1 or 4 repetitions" character)))))
+                       ((or ?x ?X)
+                        (cons 'timezone             (let ((details (pcase num-repetitions
+                                                                     (1 'offset-hh?mm)
+                                                                     (2 'offset-hhmm)
+                                                                     (3 'offset-hh:mm)
+                                                                     (4 'offset-hhmm?ss)
+                                                                     (5 'offset-hh:mm?:ss)
+                                                                     (_ (error "Pattern character `%c' must come in 1-5 repetitions" character)))))
+                                                      (if (= character ?x) details (intern (format "%s-or-z" (symbol-name details)))))))
+                       (?Z (cons 'timezone          (pcase num-repetitions
+                                                      ((or 1 2 3) 'offset-hhmm)
+                                                      (4          'offset-localized-full)
+                                                      (5          'offset-hh:mm?:ss-or-z)
+                                                      (_ (error "Pattern character `%c' must come in 1-5 repetitions" character)))))
                        (_
                         (error "Illegal pattern character `%c'" character)))
                      parts))
@@ -527,6 +543,83 @@ form:
       (setq thresholds (cdr thresholds)
             index      (1+ index)))
     index))
+
+
+;; In functions below we rely on form arguments being evaluated from left to right.  This
+;; is documented in Elisp manual.  Important as we use `(setf offset ...)' in the first
+;; argument's of `format'.
+
+(defsubst datetime--format-offset-hhmm (offset)
+  (format (if (>= offset 0)
+              "+%02d%02d"
+            (setf offset (- offset))
+            "-%02d%02d")
+          (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60)))
+
+(defsubst datetime--format-offset-hh?mm (offset)
+  (let ((sign    (if (>= offset 0) ?+ ?-))
+        (hours   (/ (if (>= offset 0) offset (setf offset (- offset))) (* 60 60)))
+        (minutes (/ (% offset (* 60 60)) 60)))
+      (if (= minutes 0)
+          (format "%c%02d" sign hours)
+        (format "%c%02d%02d" sign hours minutes))))
+
+(defsubst datetime--format-offset-hhmm?ss (offset)
+  (let ((sign    (if (>= offset 0) ?+ ?-))
+        (seconds (% (if (>= offset 0) offset (setf offset (- offset))) 60)))
+    (if (= seconds 0)
+        (format "%c%02d%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60))
+      (format "%c%02d%02d%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60) seconds))))
+
+(defsubst datetime--format-offset-hh:mm (offset)
+  (format (if (>= offset 0)
+              "+%02d:%02d"
+            (setf offset (- offset))
+            "-%02d:%02d")
+          (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60)))
+
+(defsubst datetime--format-offset-hh:mm?:ss (offset)
+  (let ((sign    (if (>= offset 0) ?+ ?-))
+        (seconds (% (if (>= offset 0) offset (setf offset (- offset))) 60)))
+    (if (= seconds 0)
+        (format "%c%02d:%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60))
+      (format "%c%02d:%02d:%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60) seconds))))
+
+(defsubst datetime--format-offset-hhmm-or-z (offset)
+  (if (= offset 0) "Z" (datetime--format-offset-hhmm offset)))
+
+(defsubst datetime--format-offset-hh?mm-or-z (offset)
+  (if (= offset 0) "Z" (datetime--format-offset-hh?mm offset)))
+
+(defsubst datetime--format-offset-hhmm?ss-or-z (offset)
+  (if (= offset 0) "Z" (datetime--format-offset-hhmm?ss offset)))
+
+(defsubst datetime--format-offset-hh:mm-or-z (offset)
+  (if (= offset 0) "Z" (datetime--format-offset-hh:mm offset)))
+
+(defsubst datetime--format-offset-hh:mm?:ss-or-z (offset)
+  (if (= offset 0) "Z" (datetime--format-offset-hh:mm?:ss offset)))
+
+(defsubst datetime--format-offset-localized-short (offset)
+  (if (= offset 0)
+      "GMT"
+    (let ((sign                (if (>= offset 0) ?+ ?-))
+          (minutes-and-seconds (% (if (>= offset 0) offset (setf offset (- offset))) (* 60 60))))
+      (if (= minutes-and-seconds 0)
+          (format "GMT%c%d" sign (/ offset (* 60 60)))
+        (let ((seconds (% minutes-and-seconds 60)))
+          (if (= seconds 0)
+              (format "GMT%c%d:%02d" sign (/ offset (* 60 60)) (/ minutes-and-seconds 60))
+            (format "GMT%c%d:%02d:%02d" sign (/ offset (* 60 60)) (/ minutes-and-seconds 60) seconds)))))))
+
+(defsubst datetime--format-offset-localized-full (offset)
+  (if (= offset 0)
+      "GMT"
+    (let ((sign    (if (>= offset 0) ?+ ?-))
+          (seconds (% (if (>= offset 0) offset (setf offset (- offset))) 60)))
+      (if (= seconds 0)
+          (format "GMT%c%02d:%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60))
+        (format "GMT%c%02d:%02d:%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60) seconds)))))
 
 
 (defsubst datetime--digits-format (num-repetitions)
@@ -679,19 +772,20 @@ to this function.
                     (push "%s" format-parts)
                     ;; See comments for the variable for explanation of `floatp'.
                     (push `(if (floatp datetime--last-conversion-offset) ,dst-name ,name) format-arguments))))
-               (`rfc-822
-                (pcase timezone-data
-                  (`(,constant-offset)
-                   (push (format "%c%02d%02d"
-                                 (if (>= constant-offset 0) ?+ ?-)
-                                 (/ (abs constant-offset) (* 60 60))
-                                 (/ (mod (abs constant-offset) (* 60 60)) 60))
-                         format-parts))
-                  (_
-                   (push "%c%02d%02d" format-parts)
-                   (push `(if (>= datetime--last-conversion-offset 0) ?+ ?-) format-arguments)
-                   (push `(/ (abs (round datetime--last-conversion-offset)) (* 60 60)) format-arguments)
-                   (push `(/ (mod (abs (round datetime--last-conversion-offset)) (* 60 60)) 60) format-arguments))))
+               ((or `offset-localized-short `offset-localized-full
+                    `offset-hh?mm `offset-hhmm `offset-hh:mm `offset-hhmm?ss `offset-hh:mm?:ss
+                    `offset-hh?mm-or-z `offset-hhmm-or-z `offset-hh:mm-or-z `offset-hhmm?ss-or-z `offset-hh:mm?:ss-or-z
+                    `offset-hhmm)
+                (let ((formatter-function (intern (format "datetime--format-%s" (symbol-name details)))))
+                  (pcase timezone-data
+                    (`(,constant-offset)
+                     (push (funcall formatter-function constant-offset) format-parts))
+                    (_
+                     ;; At least `offset-hhmm' and `offset-hh:mm' could in principle be
+                     ;; inlined since they use (or could use) fixed format substring.
+                     ;; Hardly terribly important.
+                     (push "%s" format-parts)
+                     (push `(,formatter-function (round datetime--last-conversion-offset)) format-arguments)))))
                (_
                 (signal 'datetime-unsupported-timezone details))))
             (_ (error "Unexpected value %s" type))))))

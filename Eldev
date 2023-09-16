@@ -1,6 +1,6 @@
 ; -*- mode: emacs-lisp; lexical-binding: t -*-
 
-(eldev-require-version "0.5")
+(eldev-require-version "1.2")
 
 (eldev-use-package-archive 'melpa)
 
@@ -20,9 +20,7 @@
                    :default t)
   :collect        (":default" ":java")
   (eldev-call-process (executable-find "javac") `(,source ,@(when eldev-build-suppress-warnings '("-nowarn")) ,@(when eldev-build-treat-warnings-as-errors '("-Werror")))
-    ;; FIXME: Using Eldev package-private function.
-    (when (fboundp 'eldev--forward-process-output)
-      (eldev--forward-process-output))
+    :forward-output t
     (unless (= exit-code 0)
       (signal 'eldev-error `("`javac' process exited with error code %d" ,exit-code)))))
 
@@ -54,6 +52,8 @@
   (require 'extmap)
   (eldev-trace "Collecting data using the Java helper...")
   (eldev-call-process "java" `("-cp" "dev" "HarvestData" ,@(eldev-listify command-line))
+    :destination    '(t nil)
+    :forward-output 'stderr
     (unless (= exit-code 0)
       (signal 'eldev-error `("`HarvestData' tool exited with error code %d: %s" ,exit-code ,(buffer-string))))
     (eldev-trace "Building an extmap out of it...")

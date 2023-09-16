@@ -40,48 +40,56 @@
 (defun datetime--test (command times)
   (unless (listp times)
     (setq times (list times)))
-  (unless (process-live-p datetime--test-java-process)
-    (let ((default-directory datetime--test-directory)
-          (stderr            (get-buffer-create "java-benchmark/stderr")))
-      (with-current-buffer stderr
-        (erase-buffer))
-      (setq datetime--test-java-process (make-process :name "java-benchmark" :buffer "java-benchmark" :stderr stderr
-                                                      :command '("java" "ProcessTimestamp")))))
-  (let* ((marker           (process-mark datetime--test-java-process))
-         (position         (marker-position marker))
-         (num-times        (length times))
-         (num-result-lines 0)
-         result
-         successful)
-    (unwind-protect
-        (with-current-buffer (marker-buffer marker)
-          ;; It is much faster to give "tasks" to the remote process in
-          ;; batch, then fetch the results.
-          (dolist (time times)
-            (process-send-string datetime--test-java-process
-                                 (format "%s %s\n%s %s %s\n" command time datetime--test-timezone datetime--test-locale datetime--test-pattern)))
-          (while (< num-result-lines num-times)
-            (while (or (= (marker-position marker) position) (/= (char-before marker) ?\n))
-              (accept-process-output datetime--test-java-process))
-            (unless (process-live-p datetime--test-java-process)
-              (error "ProcessTimestamp process exited unexpectedly with code %d:\n%s"
-                     (process-exit-status datetime--test-java-process) (with-current-buffer "java-benchmark/stderr" (buffer-string))))
-            (while (> (marker-position marker) position)
-              (goto-char position)
-              (end-of-line)
-              (let ((as-string (buffer-substring position (point))))
-                (push (if (eq command 'format) as-string (car (read-from-string as-string))) result))
-              (beginning-of-line 2)
-              (setq position         (point)
-                    num-result-lines (1+ num-result-lines))))
-          (setf successful t)
-          (nreverse result))
-      (unless successful
-        (message "stderr of `java-benchmark':\n%s"
-                 (condition-case error
-                     (with-current-buffer "java-benchmark/stderr"
-                       (if (bobp) "[empty]" (buffer-string)))
-                   (error (format "[failed to retrieve: %S]" error))))))))
+  (with-temp-buffer
+    (let ((commands (current-buffer))
+          (stderr   (get-buffer-create " java-benchmark/stderr")))
+      (unless (process-live-p datetime--test-java-process)
+        (let ((default-directory datetime--test-directory))
+          (with-current-buffer stderr
+            (erase-buffer))
+          (setq datetime--test-java-process (make-process :name "java-benchmark" :buffer "java-benchmark" :stderr stderr
+                                                          :command '("java" "ProcessTimestamp")))))
+      (let* ((marker           (process-mark datetime--test-java-process))
+             (position         (marker-position marker))
+             (num-times        (length times))
+             (num-result-lines 0)
+             result
+             successful)
+        (unwind-protect
+            (with-current-buffer (marker-buffer marker)
+              ;; It is much faster to give "tasks" to the remote process in
+              ;; batch, then fetch the results.
+              (with-current-buffer commands
+                (dolist (time times)
+                  (insert (format "%s %s\n%s %s %s\n" command time datetime--test-timezone datetime--test-locale datetime--test-pattern))))
+              (process-send-string datetime--test-java-process (with-current-buffer commands (buffer-string)))
+              (while (< num-result-lines num-times)
+                (while (or (= (marker-position marker) position) (/= (char-before marker) ?\n))
+                  (accept-process-output datetime--test-java-process))
+                (unless (process-live-p datetime--test-java-process)
+                  (error "ProcessTimestamp process exited unexpectedly with code %d:\n%s"
+                         (process-exit-status datetime--test-java-process) (with-current-buffer stderr (buffer-string))))
+                (while (> (marker-position marker) position)
+                  (goto-char position)
+                  (end-of-line)
+                  (let ((as-string (buffer-substring position (point))))
+                    (push (if (eq command 'format) as-string (car (read-from-string as-string))) result))
+                  (beginning-of-line 2)
+                  (setq position         (point)
+                        num-result-lines (1+ num-result-lines))))
+              (setf successful t)
+              (nreverse result))
+          (unless successful
+            (message "stderr of `java-benchmark':\n%s"
+                     (condition-case error
+                         (with-current-buffer stderr
+                           (if (bobp) "[empty]" (buffer-string)))
+                       (error (format "[failed to retrieve: %S]" error))))
+            (message "command(s) to be sent or have been sent to `java-benchmark' last:\n%s"
+                     (condition-case error
+                         (with-current-buffer commands
+                           (if (bobp) "[none]" (buffer-string)))
+                       (error (format "[failed to retrieve: %S]" error))))))))))
 
 
 (provide 'test/base)

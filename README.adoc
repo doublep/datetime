@@ -16,6 +16,7 @@ endif::[]
 
 
 image:https://img.shields.io/badge/license-GPL_3-green.svg[License: GPL 3, link=http://www.gnu.org/licenses/gpl-3.0.txt]
+image:https://img.shields.io/github/release/doublep/datetime.svg[Latest release, link=https://github.com/doublep/datetime/releases]
 image:http://stable.melpa.org/packages/datetime-badge.svg[MELPA Stable, link=http://stable.melpa.org/#/datetime]
 image:https://github.com/doublep/datetime/workflows/CI/badge.svg[CI, link=https://github.com/doublep/datetime/actions?query=workflow%3ACI]
 

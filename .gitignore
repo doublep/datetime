@@ -1,4 +1,5 @@
 *.elc
+.flycheck_*.el
 
 /dev/*.class
 /test/*.class

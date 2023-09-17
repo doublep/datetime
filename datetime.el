@@ -1575,7 +1575,7 @@ specified otherwise.
                (details (cdr part))
                (regexp  (pcase type
                           (`era
-                           (datetime-locale-field locale :era))
+                           (datetime-locale-field locale :eras))
                           ((or `year `year-for-week)
                            (cond ((and (plist-get options :only-4-digit-years) (eq details 4))
                                   (rx (= 4 (any "0-9"))))

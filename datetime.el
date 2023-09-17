@@ -621,6 +621,23 @@ form:
           (format "GMT%c%02d:%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60))
         (format "GMT%c%02d:%02d:%02d" sign (/ offset (* 60 60)) (/ (% offset (* 60 60)) 60) seconds)))))
 
+(defvar datetime--timezone-offset-matching-regexps
+  '((offset-hhmm            . "[-+][01][0-9][0-5][0-9]")
+    (offset-hh?mm           . "[-+][01][0-9]\\(?:[0-5][0-9]\\)?")
+    (offset-hhmm?ss         . "[-+][01][0-9][0-5][0-9]\\(?:[0-5][0-9]\\)?")
+    (offset-hh:mm           . "[-+][01][0-9]:[0-5][0-9]")
+    (offset-hh:mm?:ss       . "[-+][01][0-9]:[0-5][0-9]\\(?::[0-5][0-9]\\)?")
+    (offset-hhmm-or-z       . "[-+][01][0-9][0-5][0-9]\\|Z")
+    (offset-hh?mm-or-z      . "[-+][01][0-9]\\(?:[0-5][0-9]\\)?\\|Z")
+    (offset-hhmm?ss-or-z    . "[-+][01][0-9][0-5][0-9]\\(?:[0-5][0-9]\\)?\\|Z")
+    (offset-hh:mm-or-z      . "[-+][01][0-9]:[0-5][0-9]\\|Z")
+    (offset-hh:mm?:ss-or-z  . "[-+][01][0-9]:[0-5][0-9]\\(?::[0-5][0-9]\\)?\\|Z")
+    (offset-localized-short . "GMT\\(?:[-+]\\([0-9]\\|1[0-9]\\)\\(?::[0-5][0-9]\\(?::[0-5][0-9]\\)?\\)?\\)?")
+    (offset-localized-full  . "GMT\\(?:[-+][01][0-9]:[0-5][0-9]\\(?::[0-5][0-9]\\)?\\)?")))
+
+(defun datetime--timezone-offset-matching-regexp (details)
+  (cdr (assq details datetime--timezone-offset-matching-regexps)))
+
 
 (defsubst datetime--digits-format (num-repetitions)
   (if (> num-repetitions 1) (format "%%0%dd" num-repetitions) "%d"))
@@ -787,8 +804,8 @@ to this function.
                      (push "%s" format-parts)
                      (push `(,formatter-function (round datetime--last-conversion-offset)) format-arguments)))))
                (_
-                (signal 'datetime-unsupported-timezone details))))
-            (_ (error "Unexpected value %s" type))))))
+                (error "Unexpected timezone details `%s'" details))))
+            (_ (error "Unexpected value `%s'" type))))))
     ;; 400 is the size of Gregorian calendar leap year loop.
     (let* ((days-in-400-years datetime--gregorian-days-in-400-years)
            (formatter `(lambda (date-time)
@@ -841,9 +858,10 @@ to this function.
                                 ,@(when need-hour
                                     `((hour (/ (mod (floor time) ,(* 24 60 60)) ,(* 60 60))))))
                            (format ,(apply #'concat (nreverse format-parts)) ,@(nreverse format-arguments))))))
-      (if (plist-get options :debug)
-          formatter
-        (byte-compile formatter)))))
+      (unless (plist-get options :debug)
+        (unless (setf formatter (byte-compile formatter))
+          (error "Internal error: unable to byte-compile generated formatter")))
+      formatter)))
 
 ;; Not available on older Emacs versions.  Copied from recent Emacs source.
 (defun datetime--macroexp-quote (v)
@@ -1096,6 +1114,7 @@ unless specified otherwise.
          minute-part-indices
          second-part-indices
          second-fractional-part-indices
+         timezone-offset-part-indices
          have-case-sensitive-parts)
     ;; Doing this in two loops, so that the second can look ahead and easily find out if
     ;; the next regexp part is going to be a numeric value.
@@ -1171,7 +1190,20 @@ unless specified otherwise.
                         (`second-fractional    (push (cons part-index (expt 10.0 details)) second-fractional-part-indices)
                                                (apply #'concat (make-list details (rx (any "0-9")))))
                         (`timezone
-                         (signal 'datetime-unsupported-timezone nil))
+                         (pcase details
+                           ((or `abbreviated `full)
+                            (signal 'datetime-unsupported-timezone nil))
+                           ((or `offset-localized-short `offset-localized-full
+                                `offset-hh?mm `offset-hhmm `offset-hh:mm `offset-hhmm?ss `offset-hh:mm?:ss
+                                `offset-hh?mm-or-z `offset-hhmm-or-z `offset-hh:mm-or-z `offset-hhmm?ss-or-z `offset-hh:mm?:ss-or-z
+                                `offset-hhmm)
+                            ;; FIXME: Use the most specific (not just the first) offset if there are several.
+                            (when (or validating (null timezone-offset-part-indices))
+                              (push (cons part-index details) timezone-offset-part-indices))
+                            ;; t means that this is supposed to match numbers.
+                            (cons (datetime--timezone-offset-matching-regexp details) t))
+                           (_
+                            (error "Unexpected timezone details `%s'" details))))
                         (_ (error "Unexpected value %s" type)))
                       details)))
             regexp-part-sources)
@@ -1204,7 +1236,10 @@ unless specified otherwise.
                                (format (if run-together-numeric-groups "[0-%d][0-9]" "0*[1-%d]?[0-9]") (/ regexp 10)))
                               (t
                                (if run-together-numeric-groups "[01][0-9]" "0*1?[0-9]"))))))
-                (setf last-part-was-numeric nil)
+                (if (consp regexp)
+                    (setf last-part-was-numeric (cdr regexp)
+                          regexp                (car regexp))
+                  (setf last-part-was-numeric nil))
                 (cond ((vectorp regexp)
                        ;; A vector of options returned by `datetime-locale-field'.
                        (setq have-case-sensitive-parts t)
@@ -1226,7 +1261,8 @@ unless specified otherwise.
           regexp-parts                   (nreverse regexp-parts)
           minute-part-indices            (nreverse minute-part-indices)
           second-part-indices            (nreverse second-part-indices)
-          second-fractional-part-indices (nreverse second-fractional-part-indices))
+          second-fractional-part-indices (nreverse second-fractional-part-indices)
+          timezone-offset-part-indices   (nreverse timezone-offset-part-indices))
     (unless validating
       (when month-number-part-indices
         (setq month-name-part-indices nil))
@@ -1244,7 +1280,7 @@ unless specified otherwise.
                                           year-part-indices month-number-part-indices month-name-part-indices day-of-month-part-indices
                                           am-pm-part-indices day-period-part-indices
                                           hour-0-23-part-indices hour-1-24-part-indices hour-am-pm-1-12-part-indices hour-am-pm-0-11-part-indices
-                                          minute-part-indices second-part-indices second-fractional-part-indices))
+                                          minute-part-indices second-part-indices second-fractional-part-indices timezone-offset-part-indices))
            (part-index              0)
            (group-index             1))
       (while regexp-parts
@@ -1297,6 +1333,9 @@ unless specified otherwise.
            (second-computation (or (datetime--parser-computation pattern "second" validating nil 59
                                                                  (second-part-indices datetime--parser-int-computation))
                                    (plist-get 'second defaults) 0))
+           (timezone-offset-computation
+                               (datetime--parser-computation pattern "timezone offset" validating nil nil
+                                                             (timezone-offset-part-indices datetime--parser-timezone-offset-computation)))
            (parser            `(+ ,@(when (or year-computation
                                               (not (memq constant-year     '(nil 1970)))
                                               (not (memq month-computation '(nil 0)))
@@ -1325,15 +1364,19 @@ unless specified otherwise.
                                   (* ,hour-computation ,(* 60 60))
                                   (* ,minute-computation 60)
                                   ,second-computation
+                                  ,@(when timezone-offset-computation
+                                      `((- ,timezone-offset-computation)))
                                   ,@(when second-fractional-part-indices
                                       `((/ (string-to-number (match-string ,(caar second-fractional-part-indices) string))
                                            ,(cdar second-fractional-part-indices)))))))
-      (pcase timezone-data
-        (`(,constant-offset)
-         (unless (= constant-offset 0)
-           (setq parser `(- ,parser ,constant-offset))))
-        (_
-         (setq parser `(datetime--convert-from-utc-float ,parser ,(datetime--macroexp-quote timezone-data)))))
+      ;; Apply the timezone from `options', but only if one is not specified in the argument.
+      (unless timezone-offset-part-indices
+        (pcase timezone-data
+          (`(,constant-offset)
+           (unless (= constant-offset 0)
+             (setq parser `(- ,parser ,constant-offset))))
+          (_
+           (setq parser `(datetime--convert-from-utc-float ,parser ,(datetime--macroexp-quote timezone-data))))))
       (setq parser `(save-match-data
                       (if (string-match ,(concat "^" (apply #'concat regexp-parts) "$") ,(if downcased `(downcase string) 'string))
                           ,parser
@@ -1342,9 +1385,10 @@ unless specified otherwise.
         (setq parser `(let ((case-fold-search ,case-insensitive))
                         ,parser)))
       (setq parser `(lambda (string) ,parser))
-      (if (plist-get options :debug)
-          parser
-        (byte-compile parser)))))
+      (unless (plist-get options :debug)
+        (unless (setf parser (byte-compile parser))
+          (error "Internal error: unable to byte-compile generated parser")))
+      parser)))
 
 (defun datetime--parser-year-computation (argument)
   (pcase (cdr argument)
@@ -1392,6 +1436,50 @@ unless specified otherwise.
                   ,(if downcased (downcase (aref strings 0)) (aref strings 0)))
          ,if-first-form
        ,if-second-form)))
+
+;; Where ARGUMENT is expected to be `(STRING-INDEX . OFFSET-TYPE)'.
+(defun datetime--parser-timezone-offset-computation (argument)
+  (let* ((type             (cdr argument))
+         (localized        (memq type '(offset-localized-short offset-localized-full)))
+         ;; For "localized" offset types the prefix is "GMT".
+         (prefix-length    (if localized 3 0))
+         (separator-length (if (or localized (memq type '(offset-hh:mm offset-hh:mm?:ss offset-hh:mm-or-z offset-hh:mm?:ss-or-z))) 1 0))
+         (has-seconds      (or localized (memq type '(offset-hhmm?ss offset-hh:mm?:ss offset-hhmm?ss-or-z offset-hh:mm?:ss-or-z))))
+         (hour-form        `(* (string-to-number (substring offset-string
+                                                            ,(+ prefix-length 1)
+                                                            ,@(if (eq type 'offset-localized-short) '(hour-end) `(,(+ prefix-length 1 2)))))
+                               ,(* 60 60)))
+         (minutes-form     `(* (string-to-number (substring offset-string
+                                                            ,(if (eq type 'offset-localized-short)
+                                                                 '(1+ hour-end)
+                                                               (+ prefix-length 1 2 separator-length))
+                                                            ,@(when has-seconds
+                                                                `(,(if (eq type 'offset-localized-short)
+                                                                       '(+ hour-end 3)
+                                                                     (+ prefix-length 1 2 separator-length 2))))))
+                               60))
+         (seconds-form     (when has-seconds
+                             `(string-to-number (substring offset-string
+                                                           ,(if (eq type 'offset-localized-short)
+                                                                `(+ hour-end 4)
+                                                              (+ prefix-length 1 2 separator-length 2 separator-length))))))
+         (form             `(+ ,hour-form
+                               ,(if (eq type 'offset-localized-short)
+                                    `(if (> (length offset-string) 6) ,minutes-form 0)
+                                  minutes-form)
+                               ,@(when has-seconds
+                                   ;; Condition works for `offset-localized-short' too.
+                                   `((if (> (length offset-string) ,(+ prefix-length 1 2 separator-length 2)) ,seconds-form 0))))))
+    ;; For all other types `hour-end' is constant.
+    (when (eq type 'offset-localized-short)
+      (setf form `(let ((hour-end (if (or (= (length offset-string) 5) (eq (aref offset-string 5) ?:)) 5 6))) ,form)))
+    (setf form `(let ((offset ,form)) (if (= (aref offset-string ,prefix-length) ?+) offset (- offset))))
+    (unless (memq type '(offset-hhmm offset-hh?mm offset-hhmm?ss offset-hh:mm offset-hh:mm?:ss))
+      ;; For all types, there is a fixed length of the match that implies zero offset
+      ;; (either for "Z" or "GMT") and cannot happen in any other case.
+      (setf form `(if (= (length offset-string) ,(if localized 3 1)) 0 ,form)))
+    `(let ((offset-string (match-string ,(car argument) string)))
+       ,form)))
 
 ;; Pretty similar to `datetime--convert-to-utc-float', but not quite.
 (defun datetime--convert-from-utc-float (date-time timezone-data)

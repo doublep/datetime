@@ -17,7 +17,8 @@ public class ProcessTimestamp
      *      epoch time UTC;
      *    FORMATTED is (only for command `parse'): a timestamp formatted according to
      *      the parameters that follow; read until linefeed;
-     *    TIMEZONE and LOCALE are string identifiers;
+     *    TIMEZONE and LOCALE are string identifiers; when parsing, TIMEZONE may also
+     *      be "nil";
      *    PATTERN is according to SimpleDateFormat documentation and is taken until
      *      the end of line with starting and ending whitespace removed.
      *
@@ -34,11 +35,12 @@ public class ProcessTimestamp
             if (!"format".equals (command) && !"parse".equals (command))
                 throw new IllegalArgumentException (String.format ("unknown command '%s'", command));
 
-            double  timestamp = ("format".equals (command) ? input.nextDouble ()       : 0.0);
-            String  formatted = ("parse" .equals (command) ? input.nextLine ().trim () : null);
-            ZoneId  timezone  = ZoneId.of (input.next ());
-            Locale  locale    = Locale.forLanguageTag (input.next ());
-            String  pattern   = input.nextLine ().trim ();
+            double  timestamp     = ("format".equals (command) ? input.nextDouble ()       : 0.0);
+            String  formatted     = ("parse" .equals (command) ? input.nextLine ().trim () : null);
+            String  timezone_lisp = input.next ();
+            ZoneId  timezone      = (!"nil".equals (timezone_lisp) ? ZoneId.of (timezone_lisp) : null);
+            Locale  locale        = Locale.forLanguageTag (input.next ());
+            String  pattern       = input.nextLine ().trim ();
 
             switch (command) {
             case "format":

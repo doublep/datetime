@@ -18,15 +18,6 @@
 
 (require 'test/base)
 
-(defvar datetime--test-formatter nil)
-
-
-(defmacro datetime--test-set-up-formatter (timezone locale pattern &rest body)
-  (declare (debug (form form form body))
-           (indent 3))
-  `(datetime--test-set-up ,timezone ,locale ,pattern
-     (let ((datetime--test-formatter (datetime-float-formatter 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale)))
-       ,@body)))
 
 (defun datetime--test-formatter (times)
   (unless (listp times)
@@ -142,14 +133,6 @@
       ;; Exact numbers don't matter much, we just need to skip a few months each time.
       (datetime--test-formatter (mapcar (lambda (k) (* k 7000000)) (number-sequence -300 400))))))
 
-
-;; Spaces are included only for readability where needed.  They don't affect anything otherwise (or,
-;; rather, should affect the library and Java benchmark in the same way).
-(defvar datetime--test-offset-format-specifiers
-  '("Z" "ZZ" "ZZZ" " ZZZZ" "ZZZZZ"
-    " O" " OOOO"
-    "x" "xx" "xxx" "xxxx" "xxxxx"
-    "X" "XX" "XXX" "XXXX" "XXXXX"))
 
 (ert-deftest datetime-formatting-with-timezone-offset-1 ()
   (dolist (timezone (datetime-list-timezones))

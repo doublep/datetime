@@ -28,6 +28,14 @@
 
 (defvar datetime--test-directory (file-name-directory (or load-file-name (buffer-file-name))))
 
+;; Spaces are included only for readability where needed.  They don't affect anything otherwise (or,
+;; rather, should affect the library and the Java benchmark in the same way).
+(defvar datetime--test-offset-format-specifiers
+  '("Z" "ZZ" "ZZZ" " ZZZZ" "ZZZZZ"
+    " O" " OOOO"
+    "x" "xx" "xxx" "xxxx" "xxxxx"
+    "X" "XX" "XXX" "XXXX" "XXXXX"))
+
 
 (defmacro datetime--test-set-up (timezone locale pattern &rest body)
   (declare (debug (form form form body))
@@ -36,6 +44,30 @@
          (datetime--test-locale    ,locale)
          (datetime--test-pattern   ,pattern))
      ,@body))
+
+(defvar datetime--test-formatter nil)
+(defvar datetime--test-parser    nil)
+
+(defmacro datetime--test-set-up-formatter (timezone locale pattern &rest body)
+  (declare (debug (form form form body))
+           (indent 3))
+  `(datetime--test-set-up ,timezone ,locale ,pattern
+     (let ((datetime--test-formatter (datetime-float-formatter 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale)))
+       ,@body)))
+
+(defmacro datetime--test-set-up-parser (timezone locale pattern &rest body)
+  (declare (debug (form form form body))
+           (indent 3))
+  `(datetime--test-set-up ,timezone ,locale ,pattern
+     (let ((datetime--test-parser (datetime-parser-to-float 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale)))
+       ,@body)))
+
+(defmacro datetime--test-set-up-formatter-and-parser (timezone locale pattern &rest body)
+  (declare (debug (form form form body))
+           (indent 3))
+  `(datetime--test-set-up-formatter ,timezone ,locale ,pattern
+     (datetime--test-set-up-parser datetime--test-timezone datetime--test-locale datetime--test-pattern
+       ,@body)))
 
 (defun datetime--test (command times)
   (unless (listp times)

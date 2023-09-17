@@ -18,23 +18,28 @@
 
 (require 'test/base)
 
-(defvar datetime--test-parser nil)
 
-
-(defun datetime--~= (a b &optional epsilon)
-  (when (and a b)
-    (unless (<= (abs (- a b)) (or epsilon 0.0000001))
-      (message "Error of %s" (funcall (datetime-float-formatter 'java "HH:mm:ss.SSSSSS") (abs (- a b))))))
-  (if (and a b)
-      (<= (abs (- a b)) (or epsilon 0.0000001))
-    (not (or a b))))
-
-(defmacro datetime--test-set-up-parser (timezone locale pattern &rest body)
-  (declare (debug (form form form body))
-           (indent 3))
-  `(datetime--test-set-up ,timezone ,locale ,pattern
-     (let ((datetime--test-parser (datetime-parser-to-float 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale)))
-       ,@body)))
+(defun datetime--~= (our-result java-result &optional epsilon as-string)
+  (cond ((and our-result java-result)
+         (let ((error (abs (- our-result java-result))))
+           (if (<= error (or epsilon 0.0000001))
+               t
+             (message "Error of %s" (funcall (datetime-float-formatter 'java "HH:mm:ss.SSSSSS") error))
+             nil)))
+        (our-result
+         ;; Apparently there is a bug in Java in that `x' cannot parse offsets between
+         ;; +0001 and +0059 (all other offsets are fine).  Tried reporting it, only for
+         ;; `bugreport.java.com' to die on me, so fuck it.
+         (if (and (string-match-p "[^x]x$" datetime--test-pattern)
+                  as-string (string-match-p "\\+00\\(0[1-9]\\|[1-5][0-9]\\)$" as-string))
+             t
+           (message "Successfully parsed by us, but not by Java")
+           nil))
+        (java-result
+         (message "Successfully parsed by Java, but not by us")
+         nil)
+        (t
+         t)))
 
 (defun datetime--test-parser (as-strings)
   (unless (listp as-strings)
@@ -44,7 +49,7 @@
       (let ((as-string (pop as-strings))
             (time      (pop parsed)))
         (eval `(should (progn ',datetime--test-timezone ',datetime--test-locale ,datetime--test-pattern ,as-string
-                              (datetime--~= ,(funcall datetime--test-parser as-string) ,time))))))))
+                              (datetime--~= ,(funcall datetime--test-parser as-string) ,time nil ,as-string))))))))
 
 (defun datetime--test-parser-around-transition (time)
   (datetime--test-parser (datetime--test 'format (list time
@@ -159,6 +164,20 @@
   (dolist (timezone (datetime-list-timezones))
     (datetime--test-set-up-parser timezone 'en "yyyyMMddHHmmss"
       (datetime--test-parser '("20220506123000")))))
+
+
+(ert-deftest datetime-parsing-timezone-offset-1 ()
+  (dolist (offset-format-specifier datetime--test-offset-format-specifiers)
+    (let ((pattern (format "yyyy-MM-dd HH:mm:ss%s" offset-format-specifier)))
+      ;; Parser should not need a fixed timezone, instead it will get the offset from the
+      ;; argument upon call.
+      (datetime--test-set-up-parser nil 'en pattern
+        (dolist (timezone (datetime-list-timezones))
+          (datetime--test-set-up-formatter timezone 'en pattern
+            (datetime--test-parser (list (funcall datetime--test-formatter 1694863500)
+                                         ;; For ancient times many timezones yield offsets that
+                                         ;; include seconds.  Make sure we can parse those too.
+                                         (funcall datetime--test-formatter -3000000000)))))))))
 
 
 (provide 'test/parse)

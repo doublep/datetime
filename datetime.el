@@ -1614,7 +1614,16 @@ specified otherwise.
                           (`second-fractional
                            (apply #'concat (make-list details (rx (any "0-9")))))
                           (`timezone
-                           (signal 'datetime-unsupported-timezone nil))
+                           (pcase details
+                             ((or `abbreviated `full)
+                              (signal 'datetime-unsupported-timezone nil))
+                             ((or `offset-localized-short `offset-localized-full
+                                  `offset-hh?mm `offset-hhmm `offset-hh:mm `offset-hhmm?ss `offset-hh:mm?:ss
+                                  `offset-hh?mm-or-z `offset-hhmm-or-z `offset-hh:mm-or-z `offset-hhmm?ss-or-z `offset-hh:mm?:ss-or-z
+                                  `offset-hhmm)
+                              (datetime--timezone-offset-matching-regexp details))
+                             (_
+                              (error "Unexpected timezone details `%s'" details))))
                           (_ (error "Unexpected value %s" type)))))
           (push (cond ((integerp regexp)
                        ;; REGEXP is really the maximum value of this one- or two-digit
@@ -1666,19 +1675,25 @@ Options can be a list of the following keyword arguments:
   (datetime--format-pattern to (datetime--parse-pattern from pattern options) options))
 
 
-;; Arguments are expected to be atoms.
+;; Arguments are expected to be atoms; however, PART-TYPES may also consist of full cons-cells.
 (defmacro datetime--pattern-includes-p (type pattern options &rest part-types)
-  `(let ((parts (datetime--parse-pattern ,type ,pattern ,options))
-         includes)
-     (while parts
-       (let ((part (car parts)))
-         (if (and (consp part) ,(if (= (length part-types) 1)
-                                    `(eq (car part) ',(car part-types))
-                                  `(memq (car part) ',part-types)))
-             (setq parts    nil
-                   includes t)
-           (setq parts (cdr parts)))))
-     includes))
+  (declare (indent 3))
+  (let ((only-atoms (not (memq nil (mapcar #'atom part-types)))))
+    `(let ((parts (datetime--parse-pattern ,type ,pattern ,options))
+           includes)
+       (while parts
+         (let ((part (car parts)))
+           (if (and (consp part) ,(if only-atoms
+                                      (if (= (length part-types) 1)
+                                          `(eq (car part) ',(car part-types))
+                                        `(memq (car part) ',part-types))
+                                    (if (= (length part-types) 1)
+                                        `(equal part ',(car part-types))
+                                      `(member part ',part-types))))
+               (setq parts    nil
+                     includes t)
+             (setq parts (cdr parts)))))
+       includes)))
 
 (defun datetime-pattern-locale-dependent-p (type pattern &rest options)
   "Determine if PATTERN includes any locale-based parts.
@@ -1798,6 +1813,23 @@ microseconds it will be 6 and so on.  OPTIONS are passed to
 OPTIONS are passed to `datetime-recode-pattern'.  Currently no
 options can affect result of this function."
   (datetime--pattern-includes-p type pattern options timezone))
+
+(defun datetime-pattern-includes-timezone-name-p (type pattern &rest options)
+  "Determine if PATTERN includes timezone name.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options (timezone . full) (timezone . abbreviated)))
+
+(defun datetime-pattern-includes-timezone-offset-p (type pattern &rest options)
+  "Determine if PATTERN includes timezone offset.
+
+OPTIONS are passed to `datetime-recode-pattern'.  Currently no
+options can affect result of this function."
+  (datetime--pattern-includes-p type pattern options
+    (timezone . offset-hhmm) (timezone . offset-hh?mm) (timezone . offset-hhmm?ss) (timezone . offset-hh:mm) (timezone . offset-hh:mm?:ss)
+    (timezone . offset-hhmm-or-z) (timezone . offset-hh?mm-or-z) (timezone . offset-hhmm?ss-or-z) (timezone . offset-hh:mm-or-z) (timezone . offset-hh:mm?:ss-or-z)
+    (timezone . offset-localized-short) (timezone . offset-localized-full)))
 
 
 (defsubst datetime--do-get-locale-pattern (patterns variant)

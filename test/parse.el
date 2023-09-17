@@ -49,7 +49,8 @@
       (let ((as-string (pop as-strings))
             (time      (pop parsed)))
         (eval `(should (progn ',datetime--test-timezone ',datetime--test-locale ,datetime--test-pattern ,as-string
-                              (datetime--~= ,(funcall datetime--test-parser as-string) ,time nil ,as-string))))))))
+                              (datetime--~= ,(funcall datetime--test-parser as-string) ,time nil ,as-string)))
+              t)))))
 
 (defun datetime--test-parser-around-transition (time)
   (datetime--test-parser (datetime--test 'format (list time

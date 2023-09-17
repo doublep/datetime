@@ -22,12 +22,18 @@
 (defun datetime--test-formatter (times)
   (unless (listp times)
     (setq times (list times)))
-  (let ((formatted (datetime--test 'format times)))
+  (let ((all-formatted (datetime--test 'format times)))
     (while times
-      (let ((time     (pop times))
-            (expected (pop formatted)))
+      (let* ((time      (pop times))
+             (expected  (pop all-formatted))
+             (formatted (funcall datetime--test-formatter time)))
         (eval `(should (progn ',datetime--test-timezone ',datetime--test-locale ,datetime--test-pattern ,time
-                              (string= ,(funcall datetime--test-formatter time) ,expected))))))))
+                              (string= ,formatted ,expected)))
+              t)
+        (when datetime--test-matcher
+          (eval `(should (progn ',datetime--test-timezone ',datetime--test-locale ,datetime--test-pattern ,time
+                                (string-match-p ,datetime--test-matcher ,formatted)))
+                t))))))
 
 (defun datetime--test-formatter-around-transition (time)
   (datetime--test-formatter (list time

@@ -47,12 +47,16 @@
 
 (defvar datetime--test-formatter nil)
 (defvar datetime--test-parser    nil)
+(defvar datetime--test-matcher   nil)
 
 (defmacro datetime--test-set-up-formatter (timezone locale pattern &rest body)
   (declare (debug (form form form body))
            (indent 3))
   `(datetime--test-set-up ,timezone ,locale ,pattern
-     (let ((datetime--test-formatter (datetime-float-formatter 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale)))
+     (let ((datetime--test-formatter (datetime-float-formatter 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale))
+           ;; Currently, `datetime-matching-regexp' doesn't support timezone names.
+           (datetime--test-matcher   (unless (datetime-pattern-includes-timezone-name-p 'java datetime--test-pattern)
+                                       (datetime-matching-regexp 'java datetime--test-pattern :timezone datetime--test-timezone :locale datetime--test-locale))))
        ,@body)))
 
 (defmacro datetime--test-set-up-parser (timezone locale pattern &rest body)

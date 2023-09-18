@@ -21,14 +21,14 @@ image:http://stable.melpa.org/packages/datetime-badge.svg[MELPA Stable, link=htt
 image:https://github.com/doublep/datetime/workflows/CI/badge.svg[CI, link=https://github.com/doublep/datetime/actions?query=workflow%3ACI]
 
 
-# datetime
+= datetime
 
 Datetime is a library for parsing, formatting, matching and recoding
 timestamps and date-time format strings.  Not all of the planned
 functionality is implemented yet.
 
 
-## System locale and timezone
+== System locale and timezone
 
 The library will try to guess your system locale and timezone, but
 this is frustratingly difficult.  In particular, on MS Windows it will
@@ -49,23 +49,7 @@ following forms:
 ....
 
 
-## Pattern types
-
-There exist several different ways to specify date and/or time format.
-Different programming languages and their libraries use different
-formats.  E.g. format of date 2015-09-24 can be expressed at least in
-the following ways:
-
-* `yyyy-MM-dd` ({uri-icu}[ICU], {uri-java-datetimeformatter}[Java])
-* `%Y-%m-%d` (POSIX, Emacs)
-* `Y-m-d` ({uri-php-date}[PHP])
-
-This library currently uses Java pattern format everywhere, but is
-internally written in such a way that support for other types can be
-added relatively easily — when someone needs them.
-
-
-## Overall goals
+== Overall goals
 
 This library is targeted at bulk-processing, therefore many functions
 are optimized for speed, but not necessarily for ease of use.  For
@@ -81,8 +65,98 @@ important from the start.  Later it also started using datetime’s
 speed was important there too.
 
 
+== Pattern types
+
+There exist several different ways to specify date and/or time format.
+Different programming languages and their libraries use different
+formats.  E.g. format of date 2015-09-24 can be expressed at least in
+the following ways:
+
+* `yyyy-MM-dd` ({uri-icu}[ICU], {uri-java-datetimeformatter}[Java])
+* `%Y-%m-%d` (POSIX, Emacs)
+* `Y-m-d` ({uri-php-date}[PHP])
+
+This library currently uses Java pattern format everywhere, but is
+internally written in such a way that support for other types can be
+added relatively easily — when someone needs them.
+
+=== Supported Java pattern elements
+
+Java {uri-java-datetimeformatter}[date-time patterns] are very
+versatile and support a lot of features.  This library doesn’t
+implement — at least currently — every element, but does support all
+the most imporant ones.  In particular, everything (with the exception
+of timezone names) needed by patterns returned from the three
+`datetime-locale-*-pattern` functions is supported in all other parts
+of the library.  Timezone names are currently supported when
+<<#formatting,formatting>> only.
+
+Here is an overview of Java date-time pattern elements together with
+their support in datetime library:
+
+[%autowidth]
+|===
+^| Symbol | Meaning                           ^| Support in the library
+
+^| G      | era (AD/BC)                       ^| full
+^| u      | year                              ^| none
+^| y      | year of era                       ^| full
+^| Y      | week-based year                   ^| full
+^| Q/q    | quarter of year                   ^| none
+^| M/L    | month of year                     ^| full
+^| w      | week of week-based year           ^| full
+^| W      | week of month                     ^| full
+^| D      | day of year                       ^| full
+^| d      | day of month                      ^| full
+^| g      | modified julian day               ^| none
+^| E      | day of week                       ^| full
+^| e/c    | localized day of week             ^| full
+^| F      | day-of-week in month              ^| full
+^| a      | AM/PM                             ^| full
+^| B      | period of day                     ^| full
+^| H      | hour of day (0-23)                ^| full
+^| k      | hour of day (1-24)                ^| full
+^| h      | hour in AM/PM (1-12)              ^| full
+^| K      | hour in AM/PM (0-11)              ^| full
+^| m      | minute of hour                    ^| full
+^| s      | second of minute                  ^| full
+^| S      | fraction of second                ^| full
+^| A      | millisecond of day                ^| none
+^| n      | nanosecond of second              ^| none
+^| V      | timezone id                       ^| none
+^| v      | generic timezone name             ^| none
+^| z      | timezone name                     ^| only formatting
+^| Z      | timezone z-offset                 ^| full
+^| x      | timezone x-offset                 ^| full
+^| X      | timezone x-offset or 'Z' for zero ^| full
+^| O      | localized timezone offset         ^| full
+^| p      | pad modifier                      ^| none
+^| '      | quoting for literal text          ^| full
+^| [/]    | optional section                  ^| none
+|===
+
+Some examples of commonly used patterns:
+
+[%autowidth]
+|===
+| Pattern                    | Example timestamp         | Notes
+
+| `yyyy-MM-dd HH:mm:ss`      | 2023-09-18 21:29:02       |
+| `yyyy-MM-dd HH:mm:ss.SSS`  | 2023-09-18 21:29:02.618   |
+| `yyyy-MM-dd\'T\'HH:mm:ssZ` | 2023-09-18T21:29:02+0200  |
+| `yyyy-MM-dd HH:mm:ssXXX`   | 2023-09-18 21:29:02+02:00 |
+| `yyyy-MM-dd HH:mm:ssx`     | 2023-09-18 21:29:02+02    |
+| `yyyy-MM-dd HH:mm:ss O`    | 2023-09-18 21:29:02 GMT+2 |
+| `yyyy-MM-dd HH:mm:ss z`    | 2023-09-18 21:29:02 CEST  | only formatting supported
+| `EEE MMM dd HH:mm:ss yyyy` | Mon Sep 18 21:29:02 2023  |
+| `dd.MM.yyyy`               | 18.09.2023                |
+| `MMM d, yyyy`              | Sep 18, 2023              |
+| `h:mm:ss a`                | 9:29:02 PM                |
+|===
+
+
 [#parsing]
-## Parsing timestamps
+== Parsing timestamps
 
 Parsing timestamps using the library is a two-step operation.  First
 you create a _parser function_ for a specific pattern and options.
@@ -117,7 +191,7 @@ E.g. “20:00:00+01” is parseable (for example, with pattern
 
 
 [#formatting]
-## Formatting timestamps
+== Formatting timestamps
 
 To format timestamps you first need to create a _formatter function_.
 This function accepts one argument — the timestamp as a floating point
@@ -159,7 +233,7 @@ abbreviated of full names and offsets to GMT.  For example:
 
 
 [#matching]
-## Matching timestamps
+== Matching timestamps
 
 Sometimes you need to determine if given string is (likely) a
 timestamp, corresponding to given pattern.  A robust way, of course,
@@ -180,7 +254,7 @@ Timezone support in matching is currently the same as for
 <<#parsing,parsing>>.
 
 
-## Other functions
+== Other functions
 
 These functions are also part of the library interface.  They are
 documented within Emacs.

@@ -5,6 +5,7 @@ import java.time.temporal.*;
 import java.time.zone.*;
 import java.util.*;
 import java.util.function.*;
+import java.util.regex.*;
 import java.util.stream.*;
 
 
@@ -606,9 +607,12 @@ public class HarvestData
         return patterns;
     }
 
+    private static final String  ESCAPED_BACKSLASH    = Matcher.quoteReplacement ("\\\\");
+    private static final String  ESCAPED_DOUBLE_QUOTE = Matcher.quoteReplacement ("\\\"");
+
     protected static String quoteString (String string)
     {
-        return string != null ? String.format ("\"%s\"", string.replaceAll ("\\\\", "\\\\").replaceAll ("\"", "\\\"")) : "nil";
+        return string != null ? String.format ("\"%s\"", string.replaceAll ("\\\\", ESCAPED_BACKSLASH).replaceAll ("\"", ESCAPED_DOUBLE_QUOTE)) : "nil";
     }
 
 

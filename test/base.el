@@ -128,4 +128,54 @@
                        (error (format "[failed to retrieve: %S]" error))))))))))
 
 
+(ert-deftest datetime-locale-database-sanity ()
+  (dolist (locale (datetime-list-locales t))
+    (let ((decimal-separator        (datetime-locale-field locale :decimal-separator))
+          (eras                     (datetime-locale-field locale :eras))
+          (month-context-abbr       (datetime-locale-field locale :month-context-abbr))
+          (month-context-names      (datetime-locale-field locale :month-context-names))
+          (weekday-context-abbr     (datetime-locale-field locale :weekday-context-abbr))
+          (weekday-context-names    (datetime-locale-field locale :weekday-context-names))
+          (month-standalone-abbr    (datetime-locale-field locale :month-standalone-abbr))
+          (month-standalone-names   (datetime-locale-field locale :month-standalone-names))
+          (weekday-standalone-abbr  (datetime-locale-field locale :weekday-standalone-abbr))
+          (weekday-standalone-names (datetime-locale-field locale :weekday-standalone-names))
+          (am-pm                    (datetime-locale-field locale :am-pm)))
+      (ert-info ((format "\
+locale                   = %S
+decimal-separator        = %S
+eras                     = %S
+month-context-abbr       = %S
+month-context-names      = %S
+weekday-context-abbr     = %S
+weekday-context-names    = %S
+month-standalone-abbr    = %S
+month-standalone-names   = %S
+weekday-standalone-abbr  = %S
+weekday-standalone-names = %S
+am-pm                    = %S"
+                         locale decimal-separator eras
+                         month-context-abbr month-context-names
+                         weekday-context-abbr weekday-context-names
+                         month-standalone-abbr month-standalone-names
+                         weekday-standalone-abbr weekday-standalone-names
+                         am-pm))
+        (should (memq decimal-separator '(?. ?, ?٫)))
+        (dolist (entry `((,eras                      2)
+                         (,month-context-abbr       12)
+                         (,month-context-names      12)
+                         (,weekday-context-abbr      7)
+                         (,weekday-context-names     7)
+                         (,month-standalone-abbr    12)
+                         (,month-standalone-names   12)
+                         (,weekday-standalone-abbr   7)
+                         (,weekday-standalone-names  7)
+                         (,am-pm                     2)))
+          (let ((value  (car entry))
+                (length (cadr entry)))
+            (should (and (vectorp value) (= (length value) length)))
+            (dotimes (k length)
+              (should (stringp (aref value k))))))))))
+
+
 (provide 'test/base)

@@ -165,4 +165,10 @@
         (datetime--test-formatter times)))))
 
 
+;; A real bug fixed in 0.9.1.  A more thorough test for it is `datetime-locale-database-sanity'.
+(ert-deftest datetime-formatting-hebrew-1 ()
+  (datetime--test-set-up-formatter 'UTC 'he "yyyy G"
+    (datetime--test-formatter 0)))
+
+
 (provide 'test/format)

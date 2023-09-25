@@ -1966,7 +1966,7 @@ create based on locales `datetime' knows about.
 
 Note that this database doesn't include timezone names.  See
 `datetime-timezone-name-database-version'."
-  5)
+  6)
 
 (defun datetime-timezone-database-version ()
   "Return timezone database version, a simple integer.
@@ -1989,7 +1989,7 @@ Other locale-specific data as well as locale-independent data
 about timezones is contained in different databases.  See
 `datetime-locale-database-version' and
 `datetime-timezone-database-version'."
-  4)
+  5)
 
 
 (provide 'datetime)

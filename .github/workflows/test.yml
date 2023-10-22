@@ -21,8 +21,12 @@ jobs:
                         '29.1',
                         'snapshot']
         include:
-          - os: macos-latest
-            emacs_version: '29.1'
+          # Disabled for now: takes forever on default GitHub runners.
+          # Either they use particularly slow machines or (I suspect
+          # more likely) Emacs has some problems communicating with
+          # processes on that OS, resulting in delays.
+          # - os: macos-latest
+          #   emacs_version: '29.1'
           - os: windows-latest
             emacs_version: '29.1'
 

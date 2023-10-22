@@ -1,3 +1,4 @@
+import java.lang.reflect.*;
 import java.time.*;
 import java.time.chrono.*;
 import java.time.format.*;
@@ -20,6 +21,8 @@ public class HarvestData
 
     public static void main (String[] args) throws Exception
     {
+        SelfTests.run ();
+
         if (Arrays.asList (args).contains ("--locales"))
             printLocaleData ();
 
@@ -235,49 +238,67 @@ public class HarvestData
         return toLispPlist (data, false);
     }
 
+
+    private static Map <String, String>  LOCALE_FALLBACK_KEYS  = Map.of (":month-standalone-abbr",    ":month-context-abbr",
+                                                                         ":month-standalone-names",   ":month-context-names",
+                                                                         ":weekday-standalone-abbr",  ":weekday-context-abbr",
+                                                                         ":weekday-standalone-names", ":weekday-context-names");
+    private static Map <String, String>  LOCALE_DEFAULT_VALUES = Map.of (":decimal-separator",        "?.",
+                                                                         ":eras",                     ENGLISH_ERAS,
+                                                                         ":am-pm",                    ENGLISH_AM_PM,
+                                                                         ":date-time-pattern-rule",   "(t . \" \")");
+
     protected static void removeUnnecessaryLocaleData (Map <Locale, Map <String, String>> data, Locale locale)
     {
         Map <String, String>  locale_data = data.get (locale);
         Locale                parent      = new Locale (locale.getLanguage ());
-        Map <String, String>  parent_data;
+        Map <String, String>  parent_data = null;
 
-        if (Objects.equals (locale, parent))
-            parent_data = new HashMap <> ();
-        else {
+        if (!Objects.equals (locale, parent)) {
             removeUnnecessaryLocaleData (data, parent);
             parent_data = data.get (parent);
 
             locale_data.put (":parent", parent.toLanguageTag ());
         }
 
-        removeForFallback1 (locale_data, parent_data, ":decimal-separator",      "?.");
-        removeForFallback1 (locale_data, parent_data, ":eras",                   ENGLISH_ERAS);
-        removeForFallback1 (locale_data, parent_data, ":am-pm",                  ENGLISH_AM_PM);
-        removeForFallback1 (locale_data, parent_data, ":day-periods",            null);
-        removeForFallback1 (locale_data, parent_data, ":date-time-pattern-rule", "(t . \" \")");
+        // See the various tests for this method.  Removals below need to satisfy them all.
 
-        removeForFallback2 (locale_data, parent_data, ":month-standalone-abbr",    ":month-context-abbr");
-        removeForFallback2 (locale_data, parent_data, ":month-standalone-names",   ":month-context-names");
-        removeForFallback2 (locale_data, parent_data, ":weekday-standalone-abbr",  ":weekday-context-abbr");
-        removeForFallback2 (locale_data, parent_data, ":weekday-standalone-names", ":weekday-context-names");
+        for (var entry : LOCALE_FALLBACK_KEYS.entrySet ()) {
+            var  key         = entry.getKey ();
+            var  fallback_to = entry.getValue ();
 
-        for (Iterator <Map.Entry <String, String>> it = locale_data.entrySet ().iterator (); it.hasNext ();) {
-            Map.Entry <String, String>  entry = it.next ();
-            if (Objects.equals (entry.getValue (), parent_data.get (entry.getKey ())))
-                it.remove ();
+            if (locale_data.containsKey (key) && Objects.equals (locale_data.get (key), locale_data.get (fallback_to)))
+                locale_data.remove (key);
+        }
+
+        for (var it = locale_data.entrySet ().iterator (); it.hasNext ();) {
+            var  entry = it.next ();
+            var  key   = entry.getKey ();
+
+            if (!key.equals (":parent") && !LOCALE_FALLBACK_KEYS.containsKey (key)) {
+                if (Objects.equals (entry.getValue (), getEffectiveValue (parent_data, entry.getKey ())))
+                    it.remove ();
+            }
+        }
+
+        if (parent_data != null) {
+            for (var entry : LOCALE_FALLBACK_KEYS.entrySet ()) {
+                var  key         = entry.getKey ();
+                var  fallback_to = entry.getValue ();
+
+                if (locale_data.containsKey (key) && locale_data.get (fallback_to) == null && Objects.equals (locale_data.get (key), parent_data.get (key)))
+                    locale_data.remove (key);
+            }
         }
     }
 
-    protected static void removeForFallback1 (Map <String, String> locale_data, Map <String, String> parent_data, String key, String default_value)
+    protected static String getEffectiveValue (Map <String, String> locale_data, String key)
     {
-        if (Objects.equals (locale_data.get (key), parent_data.getOrDefault (key, default_value)))
-            locale_data.remove (key);
-    }
-
-    protected static void removeForFallback2 (Map <String, String> locale_data, Map <String, String> parent_data, String main_key, String fallback_key)
-    {
-        if (Objects.equals (locale_data.get (main_key), locale_data.get (fallback_key)))
-            locale_data.remove (main_key);
+        String  value = (locale_data != null ? locale_data.get (key) : null);
+        if (value != null)
+            return value;
+        else
+            return LOCALE_DEFAULT_VALUES.get (key);
     }
 
 
@@ -635,6 +656,71 @@ public class HarvestData
         public Object toLisp ()
         {
             return String.format (dst ? "%d.0" : "%d", seconds);
+        }
+    }
+
+
+    // Normally tests should be separate, but since this is a run-once tool and we don't
+    // have a proper Java setup for testing in this project, it's fine to do it like this.
+    protected static class SelfTests
+    {
+        public void testRemoveUnnecessaryLocaleData ()
+        {
+            var  xx    = Locale.forLanguageTag ("xx");
+            var  xx_yy = Locale.forLanguageTag ("xx-YY");
+            var  data1 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "1"),
+                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "1"));
+
+            removeUnnecessaryLocaleData (data1, xx_yy);
+            assertEquals (data1, Map.of (xx,    modifiableMap (":month-context-abbr", "1"),
+                                         xx_yy, modifiableMap (":parent", "xx")));
+
+            var  data2 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
+                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"));
+
+            removeUnnecessaryLocaleData (data2, xx_yy);
+            assertEquals (data2, Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
+                                         xx_yy, modifiableMap (":parent", "xx")));
+
+            var  data3 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
+                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "3"));
+
+            removeUnnecessaryLocaleData (data3, xx_yy);
+            assertEquals (data3, Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
+                                         xx_yy, modifiableMap (":parent", "xx", ":month-standalone-abbr", "3")));
+
+            var  data4 = Map.of (xx,    modifiableMap (":month-standalone-abbr", "2"),
+                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"));
+
+            removeUnnecessaryLocaleData (data4, xx_yy);
+            assertEquals (data4, Map.of (xx,    modifiableMap (":month-standalone-abbr", "2"),
+                                         xx_yy, modifiableMap (":parent", "xx", ":month-context-abbr", "1", ":month-standalone-abbr", "2")));
+        }
+
+
+        protected Map <String, String> modifiableMap (String... key_value_pairs)
+        {
+            var  map = new LinkedHashMap <String, String> ();
+            for (int k = 0; k < key_value_pairs.length; k += 2)
+                map.put (key_value_pairs[k], key_value_pairs[k + 1]);
+
+            return map;
+        }
+
+        protected void assertEquals (Object actual, Object expected)
+        {
+            if (!Objects.equals (actual, expected))
+                throw new Error (String.format ("self-test has failed:\n    expected: %s\n    but was:  %s", expected, actual));
+        }
+
+
+        public static void run () throws Exception
+        {
+            var  me = new SelfTests ();
+            for (var method : me.getClass ().getDeclaredMethods ()) {
+                if (method.getName ().startsWith ("test") && method.getParameterCount () == 0 && !Modifier.isStatic (method.getModifiers ()))
+                    method.invoke (me);
+            }
         }
     }
 }

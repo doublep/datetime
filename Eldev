@@ -55,7 +55,8 @@
     :destination    '(t nil)
     :forward-output 'stderr
     (unless (= exit-code 0)
-      (signal 'eldev-error `("`HarvestData' tool exited with error code %d: %s" ,exit-code ,(buffer-string))))
+      (signal 'eldev-error `(:hint "stderr output, if any, is shown above"
+                                   "`HarvestData' tool exited with error code %d:\n%s" ,exit-code ,(if (eobp) "[no stdout output]" (buffer-string)))))
     (eldev-trace "Building an extmap out of it...")
     (apply #'extmap-from-alist target (eldev-read-wholly (buffer-string) "`HarvestData' output") :overwrite t extmap-flags)))
 

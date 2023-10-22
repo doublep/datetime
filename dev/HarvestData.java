@@ -75,16 +75,18 @@ public class HarvestData
             data.put (locale, map);
 
             map.put (":decimal-separator",        String.format ("?%c", DecimalStyle.of (locale).getDecimalSeparator ()));
-            map.put (":eras",                     toLispVector (getNames (locale, ChronoField.ERA,           "G",    0, 1)));
-            map.put (":month-context-abbr",       toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMM",  1, 12)));
-            map.put (":month-context-names",      toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMMM", 1, 12)));
-            map.put (":weekday-context-abbr",     toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEE",  1, 7)));
-            map.put (":weekday-context-names",    toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEEE", 1, 7)));
-            map.put (":month-standalone-abbr",    toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLL",  1, 12)));
-            map.put (":month-standalone-names",   toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLLL", 1, 12)));
-            map.put (":weekday-standalone-abbr",  toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccc",  1, 7)));
-            map.put (":weekday-standalone-names", toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "cccc", 1, 7)));
-            map.put (":am-pm",                    toLispVector (getNames (locale, ChronoField.AMPM_OF_DAY,   "a",    0, 1)));
+            map.put (":eras-short",               toLispVector (getNames (locale, ChronoField.ERA,           "G",     0,  1)));
+            map.put (":eras-full",                toLispVector (getNames (locale, ChronoField.ERA,           "GGGG",  0,  1)));
+            map.put (":eras-narrow",              toLispVector (getNames (locale, ChronoField.ERA,           "GGGGG", 0,  1)));
+            map.put (":month-context-abbr",       toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMM",   1, 12)));
+            map.put (":month-context-names",      toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMMM",  1, 12)));
+            map.put (":weekday-context-abbr",     toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEE",   1,  7)));
+            map.put (":weekday-context-names",    toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEEE",  1,  7)));
+            map.put (":month-standalone-abbr",    toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLL",   1, 12)));
+            map.put (":month-standalone-names",   toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLLL",  1, 12)));
+            map.put (":weekday-standalone-abbr",  toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccc",   1,  7)));
+            map.put (":weekday-standalone-names", toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "cccc",  1,  7)));
+            map.put (":am-pm",                    toLispVector (getNames (locale, ChronoField.AMPM_OF_DAY,   "a",     0,  1)));
             map.put (":day-periods",              findDayPeriodData (locale));
 
             Map <String, String>  date_patterns = toPatternPlist ((style) -> DateTimeFormatterBuilder.getLocalizedDateTimePattern (style, null, chronology, locale));
@@ -239,7 +241,9 @@ public class HarvestData
     }
 
 
-    private static Map <String, String>  LOCALE_FALLBACK_KEYS  = Map.of (":month-standalone-abbr",    ":month-context-abbr",
+    private static Map <String, String>  LOCALE_FALLBACK_KEYS  = Map.of (":eras-full",                ":eras-short",
+                                                                         ":eras-narrow",              ":eras-short",
+                                                                         ":month-standalone-abbr",    ":month-context-abbr",
                                                                          ":month-standalone-names",   ":month-context-names",
                                                                          ":weekday-standalone-abbr",  ":weekday-context-abbr",
                                                                          ":weekday-standalone-names", ":weekday-context-names");

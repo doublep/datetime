@@ -68,7 +68,7 @@
 ;; In all cases these should be seen as internals and can be changed
 ;; in a future library versions without prior notice.
 ;;
-;;   era (full | abbreviated) --- AD or BC
+;;   era (short | full | narrow) --- AD or BC
 ;;
 ;;   year (add-century-when-parsing | always-two-digits | NUMBER)
 ;;     - add-century-when-parsing: format as-is, but when parsing add
@@ -138,7 +138,9 @@
 ;;   - for locale XX-YY value for any property defaults to that for
 ;;     locale XX;
 ;;   - `:decimal-separator' defaults to dot;
-;;   - `:eras' and `:am-pm' default to English version;
+;;   - both `:eras-full' and `:eras-narrow' fall back to
+;;     `:eras-short';
+;;   - `:eras-short' and `:am-pm' default to English version;
 ;;   - month/dayweek standalone abbreviations or names default to
 ;;     the corresponding context-aware property;
 ;;   - for day period strings, both `:full' and `:narrow' variants
@@ -353,11 +355,11 @@ form:
                  (setq scan            (1+ scan)
                        num-repetitions (1+ num-repetitions)))
                (push (pcase character
-                       ((or ?G ?a)
-                        (cons (pcase character
-                                (?G 'era)
-                                (?a 'am-pm))
-                              (if (>= num-repetitions 4) 'full 'abbreviated)))
+                       (?G (cons 'era (pcase num-repetitions
+                                        ((or 1 2 3) 'short)
+                                        (4          'full)
+                                        (5          'narrow)
+                                        (_ (error "Pattern character `%c' must come in 1-5 repetitions" character)))))
                        ((or ?y ?Y)
                         (cons (if (= character ?y) 'year 'year-for-week)
                               (pcase num-repetitions
@@ -381,6 +383,9 @@ form:
                        (?d (cons 'day-in-month      num-repetitions))
                        (?F (cons 'weekday-in-month  num-repetitions))
                        (?u (cons 'weekday           num-repetitions))
+                       (?a (cons 'am-pm             (pcase num-repetitions
+                                                      (1 'abbreviated)
+                                                      (_ (error "Pattern character `%c' must come in exactly 1 repetition" character)))))
                        (?H (cons 'hour-0-23         num-repetitions))
                        (?k (cons 'hour-1-24         num-repetitions))
                        (?K (cons 'hour-am-pm-0-11   num-repetitions))
@@ -447,7 +452,10 @@ form:
         (let* ((type    (car part))
                (details (cdr part))
                (string  (pcase type
-                          (`era              "G")
+                          (`era              (pcase details
+                                               (`short  "G")
+                                               (`full   "GGGG")
+                                               (`narrow "GGGGG")))
                           ((or `year `year-for-week)
                            (let ((base (if (eq type 'year) ?y ?Y)))
                              (pcase details
@@ -688,7 +696,7 @@ to this function.
             (`era
              (setq need-year t)
              (push "%s" format-parts)
-             (push `(aref ,(datetime-locale-field locale :eras) (if (> year 0) 1 0)) format-arguments))
+             (push `(aref ,(datetime-locale-field locale (datetime--era-field details)) (if (> year 0) 1 0)) format-arguments))
             (`year
              (setq need-year t)
              (push (pcase details
@@ -1130,9 +1138,10 @@ unless specified otherwise.
               (let* ((type    (car part))
                      (details (cdr part)))
                 (cons (pcase type
-                        (`era                   (when (or validating (null era-part-indices))
-                                                  (push part-index era-part-indices))
-                                                (datetime-locale-field locale :eras))
+                        (`era                   (let ((field (datetime--era-field details)))
+                                                  (when (or validating (null era-part-indices))
+                                                    (push (cons part-index field) era-part-indices))
+                                                  (datetime-locale-field locale field)))
                         (`year
                          (when (or validating (null year-part-indices))
                            (push (cons part-index details) year-part-indices))
@@ -1307,7 +1316,7 @@ unless specified otherwise.
                                  (or (plist-get 'year defaults) 1970)))
            (era-correction     (when (and year-computation era-part-indices)
                                  (datetime--parser-computation pattern "era" validating nil nil
-                                                               (era-part-indices (datetime--parser-era-correction locale :eras downcased) t))))
+                                                               (era-part-indices (datetime--parser-era-correction locale nil downcased) t))))
            (month-computation  (or (datetime--parser-computation pattern "month" validating 0 11
                                                                  (month-number-part-indices (datetime--parser-int-computation t))
                                                                  (month-name-part-indices (datetime--parser-string-index-computation locale nil downcased) t))
@@ -1400,7 +1409,7 @@ unless specified otherwise.
     (_                         (datetime--parser-int-computation (car argument)))))
 
 (defun datetime--parser-era-correction (argument locale field downcased)
-  (datetime--parser-string-if-computation argument locale field downcased `(setq year (- 1 year)) nil))
+  (datetime--parser-string-if-computation argument locale (or field (cdr argument)) downcased `(setq year (- 1 year)) nil))
 
 (defun datetime--parser-hour-1-24-computation (argument)
   `(let ((hour-1-24 ,(datetime--parser-int-computation argument)))
@@ -1431,7 +1440,7 @@ unless specified otherwise.
 (defun datetime--parser-string-if-computation (argument locale field downcased if-first-form if-second-form)
   (let ((strings (datetime-locale-field locale field)))
     (unless (= (length strings) 2)
-      (error "Must be called only for two-string fields"))
+      (error "Must be called only for two-string fields, called for `%S' instead" strings))
     `(if (string= (match-string ,(if (consp argument) (car argument) argument) string)
                   ,(if downcased (downcase (aref strings 0)) (aref strings 0)))
          ,if-first-form
@@ -1575,7 +1584,7 @@ specified otherwise.
                (details (cdr part))
                (regexp  (pcase type
                           (`era
-                           (datetime-locale-field locale :eras))
+                           (datetime-locale-field locale (datetime--era-field details)))
                           ((or `year `year-for-week)
                            (cond ((and (plist-get options :only-4-digit-years) (eq details 4))
                                   (rx (= 4 (any "0-9"))))
@@ -1897,17 +1906,20 @@ separated by a space, for quite a few locales it is different."
   (or (plist-get locale-data field)
       ;; See `datetime--locale-extmap' for description of fallbacks.
       (pcase field
-        (:month-standalone-abbr    (plist-get locale-data :month-context-abbr))
-        (:month-standalone-names   (plist-get locale-data :month-context-names))
-        (:weekday-standalone-abbr  (plist-get locale-data :weekday-context-abbr))
-        (:weekday-standalone-names (plist-get locale-data :weekday-context-names)))))
+        ((or :eras-full :eras-narrow) (plist-get locale-data :eras-short))
+        (:month-standalone-abbr       (plist-get locale-data :month-context-abbr))
+        (:month-standalone-names      (plist-get locale-data :month-context-names))
+        (:weekday-standalone-abbr     (plist-get locale-data :weekday-context-abbr))
+        (:weekday-standalone-names    (plist-get locale-data :weekday-context-names)))))
 
 (defun datetime-locale-field (locale field)
   "Get a FIELD of data for the LOCALE.
 Supported fields:
 
   :decimal-separator
-  :eras
+  :eras-short (also old alias :eras)
+  :eras-full
+  :eras-narrow
   :month-context-abbr
   :month-context-names
   :weekday-context-abbr
@@ -1920,14 +1932,22 @@ Supported fields:
   ;; Additionally `:day-periods', `:date-patterns', `:time-patterns' and
   ;; `:date-time-pattern-rule' are supported for internal use.
   (let ((data (extmap-get datetime--locale-extmap locale t)))
+    (pcase field
+      (:eras (setf field :eras-short)))
     (or (datetime--do-get-locale-field data field)
         (let ((parent (plist-get data :parent)))
           (when parent
             (datetime--do-get-locale-field (extmap-get datetime--locale-extmap parent) field)))
         (pcase field
-          (:decimal-separator ?.)
-          (:eras              datetime--english-eras)
-          (:am-pm             datetime--english-am-pm)))))
+          (:decimal-separator                       ?.)
+          ((or :eras-short :eras-full :eras-narrow) datetime--english-eras)
+          (:am-pm                                   datetime--english-am-pm)))))
+
+(defun datetime--era-field (details)
+  (pcase-exhaustive details
+    (`short  :eras-short)
+    (`full   :eras-full)
+    (`narrow :eras-narrow)))
 
 (defun datetime-locale-timezone-name (locale timezone dst &optional full)
   "Get name of TIMEZONE in given LOCALE.
@@ -1966,7 +1986,7 @@ create based on locales `datetime' knows about.
 
 Note that this database doesn't include timezone names.  See
 `datetime-timezone-name-database-version'."
-  6)
+  7)
 
 (defun datetime-timezone-database-version ()
   "Return timezone database version, a simple integer.

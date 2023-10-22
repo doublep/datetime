@@ -131,7 +131,9 @@
 (ert-deftest datetime-locale-database-sanity ()
   (dolist (locale (datetime-list-locales t))
     (let ((decimal-separator        (datetime-locale-field locale :decimal-separator))
-          (eras                     (datetime-locale-field locale :eras))
+          (eras-short               (datetime-locale-field locale :eras-short))
+          (eras-full                (datetime-locale-field locale :eras-full))
+          (eras-narrow              (datetime-locale-field locale :eras-narrow))
           (month-context-abbr       (datetime-locale-field locale :month-context-abbr))
           (month-context-names      (datetime-locale-field locale :month-context-names))
           (weekday-context-abbr     (datetime-locale-field locale :weekday-context-abbr))
@@ -144,7 +146,9 @@
       (ert-info ((format "\
 locale                   = %S
 decimal-separator        = %S
-eras                     = %S
+eras-short               = %S
+eras-full                = %S
+eras-narrow              = %S
 month-context-abbr       = %S
 month-context-names      = %S
 weekday-context-abbr     = %S
@@ -154,14 +158,16 @@ month-standalone-names   = %S
 weekday-standalone-abbr  = %S
 weekday-standalone-names = %S
 am-pm                    = %S"
-                         locale decimal-separator eras
+                         locale decimal-separator eras-short eras-full eras-narrow
                          month-context-abbr month-context-names
                          weekday-context-abbr weekday-context-names
                          month-standalone-abbr month-standalone-names
                          weekday-standalone-abbr weekday-standalone-names
                          am-pm))
         (should (memq decimal-separator '(?. ?, ?٫)))
-        (dolist (entry `((,eras                      2)
+        (dolist (entry `((,eras-short                2)
+                         (,eras-full                 2)
+                         (,eras-narrow               2)
                          (,month-context-abbr       12)
                          (,month-context-names      12)
                          (,weekday-context-abbr      7)

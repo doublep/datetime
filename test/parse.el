@@ -181,4 +181,15 @@
                                          (funcall datetime--test-formatter -3000000000)))))))))
 
 
+(ert-deftest datetime-parsing-era-specified-several-times ()
+  (datetime--test-set-up-parser 'UTC 'en "yyyy G+G"
+    (datetime--test-parser (list "2000 AD+AD"))
+    ;; Used to die with "inconsistent era", even though it is consistent.  Used to invert
+    ;; year two times, resulting in wrong return value.
+    (datetime--test-parser (list "2000 BC+BC")))
+  (datetime--test-set-up-parser 'UTC 'en "yyyy G / GGGG / GGGGG"
+    (datetime--test-parser (list "2000 AD / Anno Domini / A"))
+    (datetime--test-parser (list "2000 BC / Before Christ / B"))))
+
+
 (provide 'test/parse)

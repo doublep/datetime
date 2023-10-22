@@ -1315,8 +1315,9 @@ unless specified otherwise.
            (constant-year      (unless year-computation
                                  (or (plist-get 'year defaults) 1970)))
            (era-correction     (when (and year-computation era-part-indices)
-                                 (datetime--parser-computation pattern "era" validating nil nil
-                                                               (era-part-indices (datetime--parser-era-correction locale nil downcased) t))))
+                                 (let ((only-one-part (null (cdr era-part-indices))))
+                                   (datetime--parser-computation pattern "era" validating nil nil
+                                                                 (era-part-indices (datetime--parser-era-correction locale nil downcased (not only-one-part)) t)))))
            (month-computation  (or (datetime--parser-computation pattern "month" validating 0 11
                                                                  (month-number-part-indices (datetime--parser-int-computation t))
                                                                  (month-name-part-indices (datetime--parser-string-index-computation locale nil downcased) t))
@@ -1408,8 +1409,12 @@ unless specified otherwise.
     (`always-two-digits        `(+ ,(datetime--parser-int-computation (car argument)) 2000))
     (_                         (datetime--parser-int-computation (car argument)))))
 
-(defun datetime--parser-era-correction (argument locale field downcased)
-  (datetime--parser-string-if-computation argument locale (or field (cdr argument)) downcased `(setq year (- 1 year)) nil))
+(defun datetime--parser-era-correction (argument locale field downcased can-be-called-multiple-times)
+  (datetime--parser-string-if-computation argument locale (or field (cdr argument)) downcased
+                                          (if can-be-called-multiple-times
+                                              `(if (>= year 0) (setq year (- 1 year)) year)
+                                            `(setq year (- 1 year)))
+                                          nil))
 
 (defun datetime--parser-hour-1-24-computation (argument)
   `(let ((hour-1-24 ,(datetime--parser-int-computation argument)))

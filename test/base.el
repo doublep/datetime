@@ -50,7 +50,7 @@
 (defvar datetime--test-parser    nil)
 (defvar datetime--test-matcher   nil)
 
-;; To silence byte-compilation warnings on Emacs 24-25.
+;; To silence byte-compilation warnings on Emacs 25.
 (defvar byte-compile-log-warning-function)
 
 (defmacro datetime--test-with-strict-byte-compiler (&rest body)

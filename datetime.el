@@ -836,29 +836,35 @@ to this function.
                                                                  year-%-400
                                                                (setq year-%-400 (1+ year-%-400))))))))
                                 ,@(when (or need-month need-weekday need-day)
-                                    `((year-day         (- date-0 (* full-400-years ,days-in-400-years) (aref ,datetime--gregorian-cumulative-year-days (mod year 400))))
-                                      (day              year-day)
-                                      (month            (let ((july-days (if (datetime--gregorian-leap-year-mod-400-p year-%-400)
-                                                                             ,(+ 31 29 31 30 31 30)
-                                                                           ,(+ 31 28 31 30 31 30))))
-                                                          (if (>= day july-days)
-                                                              (if (>= (setq day (- day july-days)) ,(+ 31 31 30))
-                                                                  (cond ((< (setq day (- day ,(+ 31 31 30))) 31)  9)           ; October
-                                                                        ((< (setq day (- day 31)) 30)            10)           ; November
-                                                                        (t  (setq day (- day 30))                11))          ; December
-                                                                (cond ((< day 31)                                 6)           ; July
-                                                                      ((< (setq day (- day 31)) 31)               7)           ; August
-                                                                      (t  (setq day (- day 31))                   8)))         ; September
-                                                            (let ((february-days (- july-days ,(+ 31 30 31 30))))
-                                                              (cond ((< day february-days)
-                                                                     (cond ((< day 31)                            0)           ; January
-                                                                           (t (setq day (- day 31))               1)))         ; February
-                                                                    ((< (setq day (- day february-days)) ,(+ 31 30))
-                                                                     (cond ((< day 31)                            2)           ; March
-                                                                           (t (setq day (- day 31))               3)))         ; April
-                                                                    (t
-                                                                     (cond ((< (setq day (- day ,(+ 31 30))) 31)  4)           ; May
-                                                                           (t (setq day (- day 31))               5))))))))))  ; June
+                                    `((year-day         (- date-0 (* full-400-years ,days-in-400-years) (aref ,datetime--gregorian-cumulative-year-days (mod year 400))))))
+                                ,@(when (or need-month need-day)
+                                    `((day              year-day)
+                                      ;; Using variable `_month' to avoid byte-compilation warnings if day is
+                                      ;; needed, but month is not.  Let's hope byte-compiler elides unneeded
+                                      ;; code then (only side-effect of `(setq day ...)' is important in that
+                                      ;; case), such patterns are too uncommon to bother ourselves.
+                                      (,(if need-month 'month '_month)
+                                       (let ((july-days (if (datetime--gregorian-leap-year-mod-400-p year-%-400)
+                                                            ,(+ 31 29 31 30 31 30)
+                                                          ,(+ 31 28 31 30 31 30))))
+                                         (if (>= day july-days)
+                                             (if (>= (setq day (- day july-days)) ,(+ 31 31 30))
+                                                 (cond ((< (setq day (- day ,(+ 31 31 30))) 31)  9)           ; October
+                                                       ((< (setq day (- day 31)) 30)            10)           ; November
+                                                       (t  (setq day (- day 30))                11))          ; December
+                                               (cond ((< day 31)                                 6)           ; July
+                                                     ((< (setq day (- day 31)) 31)               7)           ; August
+                                                     (t  (setq day (- day 31))                   8)))         ; September
+                                           (let ((february-days (- july-days ,(+ 31 30 31 30))))
+                                             (cond ((< day february-days)
+                                                    (cond ((< day 31)                            0)           ; January
+                                                          (t (setq day (- day 31))               1)))         ; February
+                                                   ((< (setq day (- day february-days)) ,(+ 31 30))
+                                                    (cond ((< day 31)                            2)           ; March
+                                                          (t (setq day (- day 31))               3)))         ; April
+                                                   (t
+                                                    (cond ((< (setq day (- day ,(+ 31 30))) 31)  4)           ; May
+                                                          (t (setq day (- day 31))               5))))))))))  ; June
                                 ,@(when need-weekday
                                     `((weekday          (% (+ year-day (aref ,datetime--gregorian-first-day-of-year (mod year 400))) 7))))
                                 ,@(when (or need-time need-hour)
@@ -867,8 +873,7 @@ to this function.
                                     `((hour (/ (mod (floor time) ,(* 24 60 60)) ,(* 60 60))))))
                            (format ,(apply #'concat (nreverse format-parts)) ,@(nreverse format-arguments))))))
       (unless (plist-get options :debug)
-        (unless (setf formatter (byte-compile formatter))
-          (error "Internal error: unable to byte-compile generated formatter")))
+        (setf formatter (datetime--do-byte-compile formatter "the generated formatter")))
       formatter)))
 
 ;; Not available on older Emacs versions.  Copied from recent Emacs source.
@@ -879,6 +884,10 @@ to this function.
 	       (memq v '(nil t))))
       v
     (list 'quote v)))
+
+(defun datetime--do-byte-compile (function description)
+  (or (byte-compile function)
+      (error "Internal error: unable to byte-compile %s" description)))
 
 (defun datetime--convert-to-utc-float (date-time timezone-data)
   (let ((year-offset          (floor (/ (- date-time (car timezone-data)) datetime--average-seconds-in-year)))
@@ -1396,8 +1405,7 @@ unless specified otherwise.
                         ,parser)))
       (setq parser `(lambda (string) ,parser))
       (unless (plist-get options :debug)
-        (unless (setf parser (byte-compile parser))
-          (error "Internal error: unable to byte-compile generated parser")))
+        (setf parser (datetime--do-byte-compile parser "ths generated parser")))
       parser)))
 
 (defun datetime--parser-year-computation (argument)

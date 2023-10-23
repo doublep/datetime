@@ -50,9 +50,13 @@
 (defvar datetime--test-parser    nil)
 (defvar datetime--test-matcher   nil)
 
+;; To silence byte-compilation warnings on Emacs 24-25.
+(defvar byte-compile-log-warning-function)
+
 (defmacro datetime--test-with-strict-byte-compiler (&rest body)
   (declare (debug (body)) (indent 0))
-  `(let* ((original-warning-function         byte-compile-log-warning-function)
+  `(let* ((original-warning-function         (when (boundp 'byte-compile-log-warning-function) byte-compile-log-warning-function))
+          ;; Don't care much if the variable is unused on ancient Emacs versions.
           (byte-compile-log-warning-function (lambda (string &optional position fill level &rest etc)
                                                (when (eq level :warning)
                                                  (error "Strict byte-compilation failure: %s" string))

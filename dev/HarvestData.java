@@ -271,7 +271,11 @@ public class HarvestData
             var  key         = entry.getKey ();
             var  fallback_to = entry.getValue ();
 
-            if (locale_data.containsKey (key) && Objects.equals (locale_data.get (key), locale_data.get (fallback_to)))
+            if (locale_data.containsKey (key)
+                && Objects.equals (locale_data.get (key), locale_data.get (fallback_to))
+                && (parent_data == null
+                    || Objects .equals (locale_data.get (key),         getEffectiveValue (parent_data, key))
+                    || !Objects.equals (locale_data.get (fallback_to), getEffectiveValue (parent_data, fallback_to))))
                 locale_data.remove (key);
         }
 
@@ -301,8 +305,10 @@ public class HarvestData
         String  value = (locale_data != null ? locale_data.get (key) : null);
         if (value != null)
             return value;
-        else
-            return LOCALE_DEFAULT_VALUES.get (key);
+        else {
+            String  fallback_to = LOCALE_FALLBACK_KEYS.get (key);
+            return fallback_to != null ? getEffectiveValue (locale_data, fallback_to) : LOCALE_DEFAULT_VALUES.get (key);
+        }
     }
 
 
@@ -699,6 +705,13 @@ public class HarvestData
             removeUnnecessaryLocaleData (data4, xx_yy);
             assertEquals (data4, Map.of (xx,    modifiableMap (":month-standalone-abbr", "2"),
                                          xx_yy, modifiableMap (":parent", "xx", ":month-context-abbr", "1", ":month-standalone-abbr", "2")));
+
+            var  data5 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
+                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "1"));
+
+            removeUnnecessaryLocaleData (data5, xx_yy);
+            assertEquals (data5, Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
+                                         xx_yy, modifiableMap (":parent", "xx", ":month-standalone-abbr", "1")));
         }
 
 

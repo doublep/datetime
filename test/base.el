@@ -146,53 +146,65 @@
 
 (ert-deftest datetime-locale-database-sanity ()
   (dolist (locale (datetime-list-locales t))
-    (let ((decimal-separator        (datetime-locale-field locale :decimal-separator))
-          (eras-short               (datetime-locale-field locale :eras-short))
-          (eras-full                (datetime-locale-field locale :eras-full))
-          (eras-narrow              (datetime-locale-field locale :eras-narrow))
-          (month-context-abbr       (datetime-locale-field locale :month-context-abbr))
-          (month-context-names      (datetime-locale-field locale :month-context-names))
-          (weekday-context-abbr     (datetime-locale-field locale :weekday-context-abbr))
-          (weekday-context-names    (datetime-locale-field locale :weekday-context-names))
-          (month-standalone-abbr    (datetime-locale-field locale :month-standalone-abbr))
-          (month-standalone-names   (datetime-locale-field locale :month-standalone-names))
-          (weekday-standalone-abbr  (datetime-locale-field locale :weekday-standalone-abbr))
-          (weekday-standalone-names (datetime-locale-field locale :weekday-standalone-names))
-          (am-pm                    (datetime-locale-field locale :am-pm)))
+    (let ((decimal-separator         (datetime-locale-field locale :decimal-separator))
+          (eras-short                (datetime-locale-field locale :eras-short))
+          (eras-full                 (datetime-locale-field locale :eras-full))
+          (eras-narrow               (datetime-locale-field locale :eras-narrow))
+          (month-context-short       (datetime-locale-field locale :month-context-short))
+          (month-context-full        (datetime-locale-field locale :month-context-full))
+          (month-context-narrow      (datetime-locale-field locale :month-context-narrow))
+          (weekday-context-short     (datetime-locale-field locale :weekday-context-short))
+          (weekday-context-full      (datetime-locale-field locale :weekday-context-full))
+          (weekday-context-narrow    (datetime-locale-field locale :weekday-context-narrow))
+          (month-standalone-short    (datetime-locale-field locale :month-standalone-short))
+          (month-standalone-full     (datetime-locale-field locale :month-standalone-full))
+          (month-standalone-narrow   (datetime-locale-field locale :month-standalone-narrow))
+          (weekday-standalone-short  (datetime-locale-field locale :weekday-standalone-short))
+          (weekday-standalone-full   (datetime-locale-field locale :weekday-standalone-full))
+          (weekday-standalone-narrow (datetime-locale-field locale :weekday-standalone-narrow))
+          (am-pm                     (datetime-locale-field locale :am-pm)))
       (ert-info ((format "\
-locale                   = %S
-decimal-separator        = %S
-eras-short               = %S
-eras-full                = %S
-eras-narrow              = %S
-month-context-abbr       = %S
-month-context-names      = %S
-weekday-context-abbr     = %S
-weekday-context-names    = %S
-month-standalone-abbr    = %S
-month-standalone-names   = %S
-weekday-standalone-abbr  = %S
-weekday-standalone-names = %S
-am-pm                    = %S"
+locale                    = %S
+decimal-separator         = %S
+eras-short                = %S
+eras-full                 = %S
+eras-narrow               = %S
+month-context-short       = %S
+month-context-full        = %S
+month-context-narrow      = %S
+weekday-context-short     = %S
+weekday-context-full      = %S
+weekday-context-narrow    = %S
+month-standalone-short    = %S
+month-standalone-full     = %S
+month-standalone-narrow   = %S
+weekday-standalone-short  = %S
+weekday-standalone-full   = %S
+weekday-standalone-narrow = %S
+am-pm                     = %S"
                          locale decimal-separator eras-short eras-full eras-narrow
-                         month-context-abbr month-context-names
-                         weekday-context-abbr weekday-context-names
-                         month-standalone-abbr month-standalone-names
-                         weekday-standalone-abbr weekday-standalone-names
+                         month-context-short month-context-full month-context-narrow
+                         weekday-context-short weekday-context-full weekday-context-narrow
+                         month-standalone-short month-standalone-full month-standalone-narrow
+                         weekday-standalone-short weekday-standalone-full weekday-standalone-narrow
                          am-pm))
         (should (memq decimal-separator '(?. ?, ?٫)))
-        (dolist (entry `((,eras-short                2)
-                         (,eras-full                 2)
-                         (,eras-narrow               2)
-                         (,month-context-abbr       12)
-                         (,month-context-names      12)
-                         (,weekday-context-abbr      7)
-                         (,weekday-context-names     7)
-                         (,month-standalone-abbr    12)
-                         (,month-standalone-names   12)
-                         (,weekday-standalone-abbr   7)
-                         (,weekday-standalone-names  7)
-                         (,am-pm                     2)))
+        (dolist (entry `((,eras-short                 2)
+                         (,eras-full                  2)
+                         (,eras-narrow                2)
+                         (,month-context-short       12)
+                         (,month-context-full        12)
+                         (,month-context-narrow      12)
+                         (,weekday-context-short      7)
+                         (,weekday-context-full       7)
+                         (,weekday-context-narrow     7)
+                         (,month-standalone-short    12)
+                         (,month-standalone-full     12)
+                         (,month-standalone-narrow   12)
+                         (,weekday-standalone-short   7)
+                         (,weekday-standalone-full    7)
+                         (,weekday-standalone-narrow  7)
+                         (,am-pm                      2)))
           (let ((value  (car entry))
                 (length (cadr entry)))
             (should (and (vectorp value) (= (length value) length)))

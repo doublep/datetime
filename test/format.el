@@ -175,15 +175,23 @@
   ;; Loop over all supported Java specifiers and make sure we produce the same results for
   ;; them as the Java benchmark.  To make it somewhat faster, combine multiple elements
   ;; into one pattern where easily possible,
-  (dolist (entry '(("G GG GGG GGGG GGGGG" era t)))  ; Java (as of 17) allows at most five repetitions.
+  (dolist (entry '(("G GG GGG GGGG GGGGG"                                   era       t)
+                   ("y yy yyy yyyy"                                         year    nil)
+                   ("M MM MMM MMMM MMMMM / L LL LLL LLLL LLLLL"             month     t)
+                   ;; FIXME: fails for 'c', 'e' and 'ee' (weekday _number_) currently.
+                   ;; 'cc' (exactly two repetitions) is not supported.
+                   ("E EE EEE EEEE EEEEE / ccc cccc ccccc / eee eeee eeeee" weekday   t)))
     (let ((pattern         (nth 0 entry))
           (unit            (nth 1 entry))
           (locale-specific (nth 2 entry)))
       (dolist (locale (if locale-specific (datetime-list-locales t) '(en)))
         (datetime--test-set-up-formatter 'UTC locale pattern
           (datetime--test-formatter (pcase unit
-                                      (`era '(0 -100000000000))
-                                      (_    (error "Unknown unit `%s'" unit)))))))))
+                                      (`era     '(0 -100000000000))
+                                      (`year    (mapcar (lambda (n) (* (- n 50) 1000000000)) (number-sequence 0 100)))
+                                      (`month   (mapcar (lambda (n) (* n 86400 31))          (number-sequence 0  11)))
+                                      (`weekday (mapcar (lambda (n) (* n 86400))             (number-sequence 0   6)))
+                                      (_        (error "Unknown unit `%s'" unit)))))))))
 
 
 (provide 'test/format)

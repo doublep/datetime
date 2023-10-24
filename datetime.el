@@ -76,8 +76,8 @@
 ;;   year-for-week (same as for year)
 ;;
 ;;   month (NUMBER)
-;;   month-context-name (full | abbreviated)
-;;   month-standalone-name (full | abbreviated)
+;;   month-context-name (short | full | narrow)
+;;   month-standalone-name (short | full | narrow)
 ;;
 ;;   week-in-year (NUMBER)
 ;;   week-in-month (NUMBER)
@@ -88,8 +88,8 @@
 ;;       e.g. would be 2 for 2015-09-09, because it is the second
 ;;       Wednesday that month;
 ;;   weekday (NUMBER)
-;;   weekday-context-name (full | abbreviated)
-;;   weekday-standalone-name (full | abbreviated)
+;;   weekday-context-name (short | full | narrow)
+;;   weekday-standalone-name (short | full | narrow)
 ;;
 ;;   am-pm (full | abbreviated)
 ;;   day-period (short | full | narrow)
@@ -370,13 +370,20 @@ form:
                         (if (<= num-repetitions 2)
                             (cons 'month num-repetitions)
                           (cons (if (= character ?M) 'month-context-name 'month-standalone-name)
-                                (if (>= num-repetitions 4) 'full 'abbreviated))))
-                       ((or ?E ?c)
-                        (cons (if (= character ?E) 'weekday-context-name 'weekday-standalone-name)
-                              (if (>= num-repetitions 4) 'full 'abbreviated)))
-                       (?e (if (<= num-repetitions 2)
-                               (cons 'weekday num-repetitions)
-                             (cons 'weekday-context-name (if (>= num-repetitions 4) 'full 'abbreviated))))
+                                (pcase num-repetitions
+                                  (3 'short)
+                                  (4 'full)
+                                  (5 'narrow)
+                                  (_ (error "Pattern character `%c' must come in 1-5 repetitions" character))))))
+                       ((or ?E ?c ?e)
+                        (if (and (= character ?e) (<= num-repetitions 2))
+                            (cons 'weekday num-repetitions)
+                          (cons (if (= character ?c) 'weekday-standalone-name 'weekday-context-name)
+                                (pcase num-repetitions
+                                  ((or 1 2 3) 'short)
+                                  (4 'full)
+                                  (5 'narrow)
+                                  (_ (error "Pattern character `%c' must come in 1-5 repetitions" character))))))
                        (?w (cons 'week-in-year      num-repetitions))
                        (?W (cons 'week-in-month     num-repetitions))
                        (?D (cons 'day-in-year       num-repetitions))
@@ -470,9 +477,10 @@ form:
                                    (`weekday-context-name    ?E)
                                    (`weekday-standalone-name ?c))
                                  (pcase details
-                                   (`abbreviated 3)
-                                   (`full        4)
-                                   (_            (error "Unexpected details %s" details)))))
+                                   (`short  3)
+                                   (`full   4)
+                                   (`narrow 5)
+                                   (_       (error "Unexpected details %s" details)))))
                           (`week-in-year      (cons ?w details))
                           (`week-in-month     (cons ?W details))
                           (`day-in-year       (cons ?D details))
@@ -721,8 +729,8 @@ to this function.
              (push "%s" format-parts)
              (push `(aref ,(datetime-locale-field locale
                                                   (if (eq type 'month-context-name)
-                                                      (if (eq details 'full) :month-context-names    :month-context-abbr)
-                                                    (if   (eq details 'full) :month-standalone-names :month-standalone-abbr)))
+                                                      (datetime--month-context-name-field details)
+                                                    (datetime--month-standalone-name-field details)))
                           month)
                    format-arguments))
             (`week-in-year
@@ -748,8 +756,8 @@ to this function.
              (push "%s" format-parts)
              (push `(aref ,(datetime-locale-field locale
                                                   (if (eq type 'weekday-context-name)
-                                                      (if (eq details 'full) :weekday-context-names    :weekday-context-abbr)
-                                                    (if   (eq details 'full) :weekday-standalone-names :weekday-standalone-abbr)))
+                                                      (datetime--weekday-context-name-field details)
+                                                    (datetime--weekday-standalone-name-field details)))
                           weekday)
                    format-arguments))
             (`am-pm
@@ -1147,66 +1155,63 @@ unless specified otherwise.
               (let* ((type    (car part))
                      (details (cdr part)))
                 (cons (pcase type
-                        (`era                   (let ((field (datetime--era-field details)))
-                                                  (when (or validating (null era-part-indices))
-                                                    (push (cons part-index field) era-part-indices))
-                                                  (datetime-locale-field locale field)))
-                        (`year
-                         (when (or validating (null year-part-indices))
-                           (push (cons part-index details) year-part-indices))
-                         ;; Magic number for the next loop.
-                         0)
-                        (`year-for-week         (error "Parsing `%s' is currently not implemented" type))
-                        (`month                 (when (or validating (null month-number-part-indices))
-                                                  (push part-index month-number-part-indices))
-                                                12)
-                        (`month-context-name    (let ((field (if (eq details 'abbreviated) :month-context-abbr :month-context-names)))
-                                                  (when (or validating (null month-name-part-indices))
-                                                    (push (cons part-index field) month-name-part-indices))
-                                                  (datetime-locale-field locale field)))
-                        (`month-standalone-name (let ((field (if (eq details 'abbreviated) :month-standalone-abbr :month-standalone-names)))
-                                                  (when (or validating (null month-name-part-indices))
-                                                    (push (cons part-index field) month-name-part-indices))
-                                                  (datetime-locale-field locale field)))
-                        (`week-in-year         (error "Parsing `%s' is currently not implemented" type))
-                        (`week-in-month        (error "Parsing `%s' is currently not implemented" type))
-                        (`day-in-month         (when (or validating (null day-of-month-part-indices))
-                                                 (push part-index day-of-month-part-indices))
-                                               31)
-                        (`weekday-in-month     (error "Parsing `%s' is currently not implemented" type))
-                        (`weekday               7)
-                        (`weekday-context-name
-                         (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-context-abbr    :weekday-context-names)))
-                        (`weekday-standalone-name
-                         (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-standalone-abbr :weekday-standalone-names)))
-                        (`am-pm                (when (or validating (null am-pm-part-indices))
-                                                 (push part-index am-pm-part-indices))
-                                               (datetime-locale-field locale :am-pm))
-                        (`day-period           (when (or validating (null day-period-part-indices))
-                                                 (push part-index day-period-part-indices))
-                                               (let ((day-period-data (datetime-locale-field locale :day-periods)))
-                                                 (or (plist-get day-period-data details) (plist-get day-period-data :short))))
-                        (`hour-0-23            (when (or validating (null hour-0-23-part-indices))
-                                                 (push part-index hour-0-23-part-indices))
-                                               23)
-                        (`hour-1-24            (when (or validating (null hour-1-24-part-indices))
-                                                 (push part-index hour-1-24-part-indices))
-                                               24)
-                        (`hour-am-pm-0-11      (when (or validating (null hour-am-pm-0-11-part-indices))
-                                                 (push part-index hour-am-pm-0-11-part-indices))
-                                               11)
-                        (`hour-am-pm-1-12      (when (or validating (null hour-am-pm-1-12-part-indices))
-                                                 (push part-index hour-am-pm-1-12-part-indices))
-                                               12)
-                        (`minute               (when (or validating (null minute-part-indices))
-                                                 (push part-index minute-part-indices))
-                                               59)
-                        (`second               (when (or validating (null second-part-indices))
-                                                 (push part-index second-part-indices))
-                                               59)
-                        (`decimal-separator    (rx (or "." ",")))
-                        (`second-fractional    (push (cons part-index (expt 10.0 details)) second-fractional-part-indices)
-                                               (apply #'concat (make-list details (rx (any "0-9")))))
+                        (`era                     (let ((field (datetime--era-field details)))
+                                                    (when (or validating (null era-part-indices))
+                                                      (push (cons part-index field) era-part-indices))
+                                                    (datetime-locale-field locale field)))
+                        (`year                    (when (or validating (null year-part-indices))
+                                                    (push (cons part-index details) year-part-indices))
+                                                  ;; Magic number for the next loop.
+                                                  0)
+                        (`year-for-week           (error "Parsing `%s' is currently not implemented" type))
+                        (`month                   (when (or validating (null month-number-part-indices))
+                                                    (push part-index month-number-part-indices))
+                                                  12)
+                        (`month-context-name      (let ((field (datetime--month-context-name-field details)))
+                                                    (when (or validating (null month-name-part-indices))
+                                                      (push (cons part-index field) month-name-part-indices))
+                                                    (datetime-locale-field locale field)))
+                        (`month-standalone-name   (let ((field (datetime--month-standalone-name-field details)))
+                                                    (when (or validating (null month-name-part-indices))
+                                                      (push (cons part-index field) month-name-part-indices))
+                                                    (datetime-locale-field locale field)))
+                        (`week-in-year            (error "Parsing `%s' is currently not implemented" type))
+                        (`week-in-month           (error "Parsing `%s' is currently not implemented" type))
+                        (`day-in-month            (when (or validating (null day-of-month-part-indices))
+                                                    (push part-index day-of-month-part-indices))
+                                                  31)
+                        (`weekday-in-month        (error "Parsing `%s' is currently not implemented" type))
+                        (`weekday                  7)
+                        (`weekday-context-name    (datetime-locale-field locale (datetime--weekday-context-name-field details)))
+                        (`weekday-standalone-name (datetime-locale-field locale (datetime--weekday-standalone-name-field details)))
+                        (`am-pm                   (when (or validating (null am-pm-part-indices))
+                                                    (push part-index am-pm-part-indices))
+                                                  (datetime-locale-field locale :am-pm))
+                        (`day-period              (when (or validating (null day-period-part-indices))
+                                                    (push part-index day-period-part-indices))
+                                                  (let ((day-period-data (datetime-locale-field locale :day-periods)))
+                                                    (or (plist-get day-period-data details) (plist-get day-period-data :short))))
+                        (`hour-0-23               (when (or validating (null hour-0-23-part-indices))
+                                                    (push part-index hour-0-23-part-indices))
+                                                  23)
+                        (`hour-1-24               (when (or validating (null hour-1-24-part-indices))
+                                                    (push part-index hour-1-24-part-indices))
+                                                  24)
+                        (`hour-am-pm-0-11         (when (or validating (null hour-am-pm-0-11-part-indices))
+                                                    (push part-index hour-am-pm-0-11-part-indices))
+                                                  11)
+                        (`hour-am-pm-1-12         (when (or validating (null hour-am-pm-1-12-part-indices))
+                                                    (push part-index hour-am-pm-1-12-part-indices))
+                                                  12)
+                        (`minute                  (when (or validating (null minute-part-indices))
+                                                    (push part-index minute-part-indices))
+                                                  59)
+                        (`second                  (when (or validating (null second-part-indices))
+                                                    (push part-index second-part-indices))
+                                                  59)
+                        (`decimal-separator       (rx (or "." ",")))
+                        (`second-fractional       (push (cons part-index (expt 10.0 details)) second-fractional-part-indices)
+                                                  (apply #'concat (make-list details (rx (any "0-9")))))
                         (`timezone
                          (pcase details
                            ((or `abbreviated `full)
@@ -1596,8 +1601,7 @@ specified otherwise.
         (let* ((type    (car part))
                (details (cdr part))
                (regexp  (pcase type
-                          (`era
-                           (datetime-locale-field locale (datetime--era-field details)))
+                          (`era                     (datetime-locale-field locale (datetime--era-field details)))
                           ((or `year `year-for-week)
                            (cond ((and (plist-get options :only-4-digit-years) (eq details 4))
                                   (rx (= 4 (any "0-9"))))
@@ -1607,34 +1611,27 @@ specified otherwise.
                                   (rx (any "0-9") (1+ (any "0-9"))))
                                  (t
                                   (format "[0-9]\\{%d\\}[0-9]+" (1- details)))))
-                          (`month                12)
-                          (`month-context-name
-                           (datetime-locale-field locale (if (eq details 'abbreviated) :month-context-abbr      :month-context-names)))
-                          (`month-standalone-name
-                           (datetime-locale-field locale (if (eq details 'abbreviated) :month-standalone-abbr   :month-standalone-names)))
-                          (`week-in-year         53)
-                          (`week-in-month         5)
-                          (`day-in-month         31)
-                          (`weekday-in-month      5)
-                          (`weekday               7)
-                          (`weekday-context-name
-                           (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-context-abbr    :weekday-context-names)))
-                          (`weekday-standalone-name
-                           (datetime-locale-field locale (if (eq details 'abbreviated) :weekday-standalone-abbr :weekday-standalone-names)))
-                          (`am-pm
-                           (datetime-locale-field locale :am-pm))
-                          (`day-period
-                           (let ((day-period-data (datetime-locale-field locale :day-periods)))
-                             (or (plist-get day-period-data details) (plist-get day-period-data :short))))
-                          (`hour-0-23            23)
-                          (`hour-1-24            24)
-                          (`hour-am-pm-0-11      11)
-                          (`hour-am-pm-1-12      12)
-                          (`minute               59)
-                          (`second               59)
-                          (`decimal-separator    (rx (or "." ",")))
-                          (`second-fractional
-                           (apply #'concat (make-list details (rx (any "0-9")))))
+                          (`month                   12)
+                          (`month-context-name      (datetime-locale-field locale (datetime--month-context-name-field details)))
+                          (`month-standalone-name   (datetime-locale-field locale (datetime--month-standalone-name-field details)))
+                          (`week-in-year            53)
+                          (`week-in-month            5)
+                          (`day-in-month            31)
+                          (`weekday-in-month         5)
+                          (`weekday                  7)
+                          (`weekday-context-name    (datetime-locale-field locale (datetime--weekday-context-name-field details)))
+                          (`weekday-standalone-name (datetime-locale-field locale (datetime--weekday-standalone-name-field details)))
+                          (`am-pm                   (datetime-locale-field locale :am-pm))
+                          (`day-period              (let ((day-period-data (datetime-locale-field locale :day-periods)))
+                                                      (or (plist-get day-period-data details) (plist-get day-period-data :short))))
+                          (`hour-0-23               23)
+                          (`hour-1-24               24)
+                          (`hour-am-pm-0-11         11)
+                          (`hour-am-pm-1-12         12)
+                          (`minute                  59)
+                          (`second                  59)
+                          (`decimal-separator       (rx (or "." ",")))
+                          (`second-fractional       (apply #'concat (make-list details (rx (any "0-9")))))
                           (`timezone
                            (pcase details
                              ((or `abbreviated `full)
@@ -1920,33 +1917,47 @@ separated by a space, for quite a few locales it is different."
       ;; See `datetime--locale-extmap' for description of fallbacks.
       (pcase field
         ((or :eras-full :eras-narrow) (plist-get locale-data :eras-short))
-        (:month-standalone-abbr       (plist-get locale-data :month-context-abbr))
-        (:month-standalone-names      (plist-get locale-data :month-context-names))
-        (:weekday-standalone-abbr     (plist-get locale-data :weekday-context-abbr))
-        (:weekday-standalone-names    (plist-get locale-data :weekday-context-names)))))
+        (:month-standalone-short      (plist-get locale-data :month-context-short))
+        (:month-standalone-full       (plist-get locale-data :month-context-full))
+        (:month-standalone-narrow     (plist-get locale-data :month-context-narrow))
+        (:weekday-standalone-short    (plist-get locale-data :weekday-context-short))
+        (:weekday-standalone-full     (plist-get locale-data :weekday-context-full))
+        (:weekday-standalone-narrow   (plist-get locale-data :weekday-context-narrow)))))
 
 (defun datetime-locale-field (locale field)
   "Get a FIELD of data for the LOCALE.
 Supported fields:
 
   :decimal-separator
-  :eras-short (also old alias :eras)
+  :eras-short                (alias: :eras)
   :eras-full
   :eras-narrow
-  :month-context-abbr
-  :month-context-names
+  :month-context-short       (alias: :month-context-abbr)
+  :month-context-full        (alias: :month-context-names)
+  :month-context-narrow
   :weekday-context-abbr
   :weekday-context-names
-  :month-standalone-abbr
-  :month-standalone-names
+  :month-standalone-short    (alias: :month-standalone-abbr)
+  :month-standalone-full     (alias: :month-standalone-names)
+  :month-standalone-narrow
   :weekday-standalone-abbr
   :weekday-standalone-names
   :am-pm"
   ;; Additionally `:day-periods', `:date-patterns', `:time-patterns' and
   ;; `:date-time-pattern-rule' are supported for internal use.
   (let ((data (extmap-get datetime--locale-extmap locale t)))
-    (pcase field
-      (:eras (setf field :eras-short)))
+    ;; Resolve aliases, mostly for compatibility with older versions.
+    (setf field (pcase field
+                  (:eras                     :eras-short)
+                  (:month-context-abbr       :month-context-short)
+                  (:month-context-names      :month-context-full)
+                  (:month-standalone-abbr    :month-standalone-short)
+                  (:month-standalone-names   :month-standalone-full)
+                  (:weekday-context-abbr     :weekday-context-short)
+                  (:weekday-context-names    :weekday-context-full)
+                  (:weekday-standalone-abbr  :weekday-standalone-short)
+                  (:weekday-standalone-names :weekday-standalone-full)
+                  (_                         field)))
     (or (datetime--do-get-locale-field data field)
         (let ((parent (plist-get data :parent)))
           (when parent
@@ -1961,6 +1972,30 @@ Supported fields:
     (`short  :eras-short)
     (`full   :eras-full)
     (`narrow :eras-narrow)))
+
+(defun datetime--month-context-name-field (details)
+  (pcase-exhaustive details
+    (`short  :month-context-short)
+    (`full   :month-context-full)
+    (`narrow :month-context-narrow)))
+
+(defun datetime--month-standalone-name-field (details)
+  (pcase-exhaustive details
+    (`short  :month-standalone-short)
+    (`full   :month-standalone-full)
+    (`narrow :month-standalone-narrow)))
+
+(defun datetime--weekday-context-name-field (details)
+  (pcase-exhaustive details
+    (`short  :weekday-context-short)
+    (`full   :weekday-context-full)
+    (`narrow :weekday-context-narrow)))
+
+(defun datetime--weekday-standalone-name-field (details)
+  (pcase-exhaustive details
+    (`short  :weekday-standalone-short)
+    (`full   :weekday-standalone-full)
+    (`narrow :weekday-standalone-narrow)))
 
 (defun datetime-locale-timezone-name (locale timezone dst &optional full)
   "Get name of TIMEZONE in given LOCALE.
@@ -1999,7 +2034,7 @@ create based on locales `datetime' knows about.
 
 Note that this database doesn't include timezone names.  See
 `datetime-timezone-name-database-version'."
-  7)
+  8)
 
 (defun datetime-timezone-database-version ()
   "Return timezone database version, a simple integer.

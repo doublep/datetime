@@ -74,20 +74,24 @@ public class HarvestData
             Map <String, String>  map = new LinkedHashMap <> ();
             data.put (locale, map);
 
-            map.put (":decimal-separator",        String.format ("?%c", DecimalStyle.of (locale).getDecimalSeparator ()));
-            map.put (":eras-short",               toLispVector (getNames (locale, ChronoField.ERA,           "G",     0,  1)));
-            map.put (":eras-full",                toLispVector (getNames (locale, ChronoField.ERA,           "GGGG",  0,  1)));
-            map.put (":eras-narrow",              toLispVector (getNames (locale, ChronoField.ERA,           "GGGGG", 0,  1)));
-            map.put (":month-context-abbr",       toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMM",   1, 12)));
-            map.put (":month-context-names",      toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMMM",  1, 12)));
-            map.put (":weekday-context-abbr",     toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEE",   1,  7)));
-            map.put (":weekday-context-names",    toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEEE",  1,  7)));
-            map.put (":month-standalone-abbr",    toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLL",   1, 12)));
-            map.put (":month-standalone-names",   toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLLL",  1, 12)));
-            map.put (":weekday-standalone-abbr",  toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccc",   1,  7)));
-            map.put (":weekday-standalone-names", toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "cccc",  1,  7)));
-            map.put (":am-pm",                    toLispVector (getNames (locale, ChronoField.AMPM_OF_DAY,   "a",     0,  1)));
-            map.put (":day-periods",              findDayPeriodData (locale));
+            map.put (":decimal-separator",         String.format ("?%c", DecimalStyle.of (locale).getDecimalSeparator ()));
+            map.put (":eras-short",                toLispVector (getNames (locale, ChronoField.ERA,           "G",     0,  1)));
+            map.put (":eras-full",                 toLispVector (getNames (locale, ChronoField.ERA,           "GGGG",  0,  1)));
+            map.put (":eras-narrow",               toLispVector (getNames (locale, ChronoField.ERA,           "GGGGG", 0,  1)));
+            map.put (":month-context-short",       toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMM",   1, 12)));
+            map.put (":month-context-full",        toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMMM",  1, 12)));
+            map.put (":month-context-narrow",      toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "MMMMM", 1, 12)));
+            map.put (":weekday-context-short",     toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEE",   1,  7)));
+            map.put (":weekday-context-full",      toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEEE",  1,  7)));
+            map.put (":weekday-context-narrow",    toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "EEEEE", 1,  7)));
+            map.put (":month-standalone-short",    toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLL",   1, 12)));
+            map.put (":month-standalone-full",     toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLLL",  1, 12)));
+            map.put (":month-standalone-narrow",   toLispVector (getNames (locale, ChronoField.MONTH_OF_YEAR, "LLLLL", 1, 12)));
+            map.put (":weekday-standalone-short",  toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccc",   1,  7)));
+            map.put (":weekday-standalone-full",   toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "cccc",  1,  7)));
+            map.put (":weekday-standalone-narrow", toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccccc", 1,  7)));
+            map.put (":am-pm",                     toLispVector (getNames (locale, ChronoField.AMPM_OF_DAY,   "a",     0,  1)));
+            map.put (":day-periods",               findDayPeriodData (locale));
 
             Map <String, String>  date_patterns = toPatternPlist ((style) -> DateTimeFormatterBuilder.getLocalizedDateTimePattern (style, null, chronology, locale));
             Map <String, String>  time_patterns = toPatternPlist ((style) -> DateTimeFormatterBuilder.getLocalizedDateTimePattern (null, style, chronology, locale));
@@ -241,16 +245,18 @@ public class HarvestData
     }
 
 
-    private static Map <String, String>  LOCALE_FALLBACK_KEYS  = Map.of (":eras-full",                ":eras-short",
-                                                                         ":eras-narrow",              ":eras-short",
-                                                                         ":month-standalone-abbr",    ":month-context-abbr",
-                                                                         ":month-standalone-names",   ":month-context-names",
-                                                                         ":weekday-standalone-abbr",  ":weekday-context-abbr",
-                                                                         ":weekday-standalone-names", ":weekday-context-names");
-    private static Map <String, String>  LOCALE_DEFAULT_VALUES = Map.of (":decimal-separator",        "?.",
-                                                                         ":eras",                     ENGLISH_ERAS,
-                                                                         ":am-pm",                    ENGLISH_AM_PM,
-                                                                         ":date-time-pattern-rule",   "(t . \" \")");
+    private static Map <String, String>  LOCALE_FALLBACK_KEYS  = Map.of (":eras-full",                 ":eras-short",
+                                                                         ":eras-narrow",               ":eras-short",
+                                                                         ":month-standalone-short",    ":month-context-short",
+                                                                         ":month-standalone-full",     ":month-context-full",
+                                                                         ":month-standalone-narrow",   ":month-context-narrow",
+                                                                         ":weekday-standalone-short",  ":weekday-context-short",
+                                                                         ":weekday-standalone-full",   ":weekday-context-full",
+                                                                         ":weekday-standalone-narrow", ":weekday-context-narrow");
+    private static Map <String, String>  LOCALE_DEFAULT_VALUES = Map.of (":decimal-separator",         "?.",
+                                                                         ":eras",                      ENGLISH_ERAS,
+                                                                         ":am-pm",                     ENGLISH_AM_PM,
+                                                                         ":date-time-pattern-rule",    "(t . \" \")");
 
     protected static void removeUnnecessaryLocaleData (Map <Locale, Map <String, String>> data, Locale locale)
     {
@@ -678,40 +684,40 @@ public class HarvestData
         {
             var  xx    = Locale.forLanguageTag ("xx");
             var  xx_yy = Locale.forLanguageTag ("xx-YY");
-            var  data1 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "1"),
-                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "1"));
+            var  data1 = Map.of (xx,    modifiableMap (":month-context-short", "1", ":month-standalone-short", "1"),
+                                 xx_yy, modifiableMap (":month-context-short", "1", ":month-standalone-short", "1"));
 
             removeUnnecessaryLocaleData (data1, xx_yy);
-            assertEquals (data1, Map.of (xx,    modifiableMap (":month-context-abbr", "1"),
+            assertEquals (data1, Map.of (xx,    modifiableMap (":month-context-short", "1"),
                                          xx_yy, modifiableMap (":parent", "xx")));
 
-            var  data2 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
-                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"));
+            var  data2 = Map.of (xx,    modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"),
+                                 xx_yy, modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"));
 
             removeUnnecessaryLocaleData (data2, xx_yy);
-            assertEquals (data2, Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
+            assertEquals (data2, Map.of (xx,    modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"),
                                          xx_yy, modifiableMap (":parent", "xx")));
 
-            var  data3 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
-                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "3"));
+            var  data3 = Map.of (xx,    modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"),
+                                 xx_yy, modifiableMap (":month-context-short", "1", ":month-standalone-short", "3"));
 
             removeUnnecessaryLocaleData (data3, xx_yy);
-            assertEquals (data3, Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
-                                         xx_yy, modifiableMap (":parent", "xx", ":month-standalone-abbr", "3")));
+            assertEquals (data3, Map.of (xx,    modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"),
+                                         xx_yy, modifiableMap (":parent", "xx", ":month-standalone-short", "3")));
 
-            var  data4 = Map.of (xx,    modifiableMap (":month-standalone-abbr", "2"),
-                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"));
+            var  data4 = Map.of (xx,    modifiableMap (":month-standalone-short", "2"),
+                                 xx_yy, modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"));
 
             removeUnnecessaryLocaleData (data4, xx_yy);
-            assertEquals (data4, Map.of (xx,    modifiableMap (":month-standalone-abbr", "2"),
-                                         xx_yy, modifiableMap (":parent", "xx", ":month-context-abbr", "1", ":month-standalone-abbr", "2")));
+            assertEquals (data4, Map.of (xx,    modifiableMap (":month-standalone-short", "2"),
+                                         xx_yy, modifiableMap (":parent", "xx", ":month-context-short", "1", ":month-standalone-short", "2")));
 
-            var  data5 = Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
-                                 xx_yy, modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "1"));
+            var  data5 = Map.of (xx,    modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"),
+                                 xx_yy, modifiableMap (":month-context-short", "1", ":month-standalone-short", "1"));
 
             removeUnnecessaryLocaleData (data5, xx_yy);
-            assertEquals (data5, Map.of (xx,    modifiableMap (":month-context-abbr", "1", ":month-standalone-abbr", "2"),
-                                         xx_yy, modifiableMap (":parent", "xx", ":month-standalone-abbr", "1")));
+            assertEquals (data5, Map.of (xx,    modifiableMap (":month-context-short", "1", ":month-standalone-short", "2"),
+                                         xx_yy, modifiableMap (":parent", "xx", ":month-standalone-short", "1")));
         }
 
 

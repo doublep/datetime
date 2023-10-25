@@ -90,6 +90,8 @@ public class HarvestData
             map.put (":weekday-standalone-short",  toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccc",   1,  7)));
             map.put (":weekday-standalone-full",   toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "cccc",  1,  7)));
             map.put (":weekday-standalone-narrow", toLispVector (getNames (locale, ChronoField.DAY_OF_WEEK,   "ccccc", 1,  7)));
+            // Subtracting 1 so that it works as zero-based index in weekday name arrays.
+            map.put (":first-day-of-week",         String.valueOf (WeekFields.of (locale).getFirstDayOfWeek ().getValue () - 1));
             map.put (":am-pm",                     toLispVector (getNames (locale, ChronoField.AMPM_OF_DAY,   "a",     0,  1)));
             map.put (":day-periods",               findDayPeriodData (locale));
 
@@ -255,6 +257,9 @@ public class HarvestData
                                                                          ":weekday-standalone-narrow", ":weekday-context-narrow");
     private static Map <String, String>  LOCALE_DEFAULT_VALUES = Map.of (":decimal-separator",         "?.",
                                                                          ":eras",                      ENGLISH_ERAS,
+                                                                         // First day defaults to Sunday.  This is used for all "no-country"
+                                                                         // locales in Java, so is the most useful as the default.
+                                                                         ":first-day-of-week",         "6",
                                                                          ":am-pm",                     ENGLISH_AM_PM,
                                                                          ":date-time-pattern-rule",    "(t . \" \")");
 

@@ -175,12 +175,11 @@
   ;; Loop over all supported Java specifiers and make sure we produce the same results for
   ;; them as the Java benchmark.  To make it somewhat faster, combine multiple elements
   ;; into one pattern where easily possible,
-  (dolist (entry '(("G GG GGG GGGG GGGGG"                                   era       t)
-                   ("y yy yyy yyyy"                                         year    nil)
-                   ("M MM MMM MMMM MMMMM / L LL LLL LLLL LLLLL"             month     t)
-                   ;; FIXME: fails for 'c', 'e' and 'ee' (weekday _number_) currently.
-                   ;; 'cc' (exactly two repetitions) is not supported.
-                   ("E EE EEE EEEE EEEEE / ccc cccc ccccc / eee eeee eeeee" weekday   t)))
+  (dolist (entry '(("G GG GGG GGGG GGGGG"                                          era       t)
+                   ("y yy yyy yyyy"                                                year    nil)
+                   ("M MM MMM MMMM MMMMM / L LL LLL LLLL LLLLL"                    month     t)
+                   ;; 'cc' (exactly two repetitions) is not supported (by Java and so by us).
+                   ("E EE EEE EEEE EEEEE / c ccc cccc ccccc / e ee eee eeee eeeee" weekday   t)))
     (let ((pattern         (nth 0 entry))
           (unit            (nth 1 entry))
           (locale-specific (nth 2 entry)))

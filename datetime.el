@@ -376,7 +376,8 @@ form:
                                   (5 'narrow)
                                   (_ (error "Pattern character `%c' must come in 1-5 repetitions" character))))))
                        ((or ?E ?c ?e)
-                        (if (and (= character ?e) (<= num-repetitions 2))
+                        (if (or (cond ((= character ?e) (<= num-repetitions 2))
+                                      ((= character ?c) (=  num-repetitions 1))))
                             (cons 'weekday num-repetitions)
                           (cons (if (= character ?c) 'weekday-standalone-name 'weekday-context-name)
                                 (pcase num-repetitions
@@ -750,7 +751,11 @@ to this function.
             (`weekday
              (setq need-weekday t)
              (push (datetime--digits-format details) format-parts)
-             (push `(1+ weekday) format-arguments))
+             (let ((first-day-of-week (datetime-locale-field locale :first-day-of-week)))
+               (push (if (= first-day-of-week 0)
+                         `(1+ weekday)
+                       `(1+ (mod (- weekday ,first-day-of-week) 7)))
+                     format-arguments)))
             ((or `weekday-context-name `weekday-standalone-name)
              (setq need-weekday t)
              (push "%s" format-parts)
@@ -1928,21 +1933,28 @@ separated by a space, for quite a few locales it is different."
   "Get a FIELD of data for the LOCALE.
 Supported fields:
 
-  :decimal-separator
+  :decimal-separator         (a character, usually dot or comma)
   :eras-short                (alias: :eras)
   :eras-full
   :eras-narrow
   :month-context-short       (alias: :month-context-abbr)
   :month-context-full        (alias: :month-context-names)
   :month-context-narrow
-  :weekday-context-abbr
-  :weekday-context-names
   :month-standalone-short    (alias: :month-standalone-abbr)
   :month-standalone-full     (alias: :month-standalone-names)
   :month-standalone-narrow
-  :weekday-standalone-abbr
-  :weekday-standalone-names
-  :am-pm"
+  :weekday-context-short     (alias: :weekday-context-abbr)
+  :weekday-context-full      (alias: :weekday-context-names)
+  :weekday-context-narrow
+  :weekday-standalone-short  (alias: :weekday-standalone-abbr)
+  :weekday-standalone-full   (alias: :weekday-standalone-names)
+  :weekday-standalone-narrow
+  :first-day-of-week         (a number, with 0 standing for Monday)
+  :am-pm
+
+Unless something else is stated explicitly, values are arrays of
+strings.  Lengths of arrays for the same field are the same
+across all locales (12 months, 7 weekdays etc.)."
   ;; Additionally `:day-periods', `:date-patterns', `:time-patterns' and
   ;; `:date-time-pattern-rule' are supported for internal use.
   (let ((data (extmap-get datetime--locale-extmap locale t)))
@@ -1965,6 +1977,7 @@ Supported fields:
         (pcase field
           (:decimal-separator                       ?.)
           ((or :eras-short :eras-full :eras-narrow) datetime--english-eras)
+          (:first-day-of-week                       6)  ; See comments in `HarvestData.java'.
           (:am-pm                                   datetime--english-am-pm)))))
 
 (defun datetime--era-field (details)
@@ -2034,7 +2047,7 @@ create based on locales `datetime' knows about.
 
 Note that this database doesn't include timezone names.  See
 `datetime-timezone-name-database-version'."
-  8)
+  9)
 
 (defun datetime-timezone-database-version ()
   "Return timezone database version, a simple integer.

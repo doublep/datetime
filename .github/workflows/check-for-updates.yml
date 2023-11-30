@@ -24,7 +24,7 @@ jobs:
       uses: emacs-eldev/setup-eldev@v1
 
     - name: Install Java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
         java-version: '17'

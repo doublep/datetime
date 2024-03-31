@@ -257,7 +257,8 @@ form:
                     (setq as-symbol (intern (replace-regexp-in-string "_" "-" (match-string 0 system-locale) t t))))))
               (if (extmap-contains-key datetime--locale-extmap as-symbol)
                   as-symbol
-                (error "Failed to determine system locale; consider customizing `datetime-locale' variable"))))
+                (error "Failed to determine system locale%s; consider customizing `datetime-locale' variable"
+                       (if as-symbol (format-message " (found raw value: `%s')" as-symbol) "")))))
       (or locale 'en))))
 
 (defun datetime--get-timezone (options)
@@ -277,7 +278,7 @@ form:
   ;; by this library.  These heuristics are certainly incomplete.
   (save-match-data
     (let ((system-timezone (intern (or (pcase system-type
-                                         ((or `gnu `gnu/linux `gnu/kfreebsd)
+                                         ((or `gnu `gnu/linux `gnu/kfreebsd `darwin)
                                           (or ;; For Debian-based distros.
                                               (when (file-exists-p "/etc/timezone")
                                                 (condition-case nil
@@ -288,7 +289,12 @@ form:
                                                   (error)))
                                               ;; Freedesktop standard (?).
                                               (let ((localtime (file-symlink-p "/etc/localtime")))
-                                                (when (and localtime (string-match "/usr/share/zoneinfo/\\(.+\\)" localtime))
+                                                ;; The link normally points to `/usr/share/...', but at least
+                                                ;; on macOS the target is `/var/db/timezone...', see
+                                                ;; https://github.com/doublep/datetime/issues/11.  To make
+                                                ;; this more robust, just accept any target with "zoneinfo"
+                                                ;; just before the name.
+                                                (when (and localtime (string-match "^/.+/zoneinfo/\\(.+\\)$" localtime))
                                                   (match-string-no-properties 1 localtime)))))
                                          ;; FIXME: On Windows we could (probably) use "tzutil /g" command to get
                                          ;;        timezone identifier, but then it still needs to be mapped to what we
@@ -299,7 +305,8 @@ form:
                                        "?"))))
       (if (extmap-contains-key datetime--timezone-extmap system-timezone)
           system-timezone
-        (error "Failed to determine system timezone; consider customizing `datetime-timezone' variable")))))
+        (error "Failed to determine system timezone%s; consider customizing `datetime-timezone' variable"
+               (if (eq system-timezone '\?) "" (format-message " (found raw value: `%s')" system-timezone)))))))
 
 
 (defun datetime--parse-pattern (type pattern options)

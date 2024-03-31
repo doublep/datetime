@@ -305,8 +305,12 @@ form:
                                        "?"))))
       (if (extmap-contains-key datetime--timezone-extmap system-timezone)
           system-timezone
-        (error "Failed to determine system timezone%s; consider customizing `datetime-timezone' variable"
-               (if (eq system-timezone '\?) "" (format-message " (found raw value: `%s')" system-timezone)))))))
+        (let* ((aliases (extmap-get datetime--timezone-extmap :aliases t))
+               (entry   (assq system-timezone aliases)))
+          (if entry
+              (cdr entry)
+            (error "Failed to determine system timezone%s; consider customizing `datetime-timezone' variable"
+                   (if (eq system-timezone '\?) "" (format-message " (found raw value: `%s')" system-timezone)))))))))
 
 
 (defun datetime--parse-pattern (type pattern options)
@@ -2064,7 +2068,7 @@ create based on timezones `datetime' knows about and their rules.
 
 Locale-specific timezone names are contained in a different
 database.  See `datetime-timezone-name-database-version'."
-  7)
+  8)
 
 (defun datetime-timezone-name-database-version ()
   "Return timezone name database version, a simple integer.

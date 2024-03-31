@@ -325,7 +325,13 @@ public class HarvestData
 
     protected static void printTimezoneData () throws Exception
     {
-        Map <ZoneId, List <Object>>  data = new LinkedHashMap <> ();
+        var        data                                  = new LinkedHashMap <ZoneId, List <Object>> ();
+        var        aliases                               = new LinkedHashMap <String, Set <ZoneId>> ();
+        var        timezones_with_matching_abbreviations = new HashSet <ZoneId> ();
+        var        abbreviation_retriever                = DateTimeFormatter.ofPattern ("z", Locale.ENGLISH);
+        var        utc_formatter                         = DateTimeFormatter.ofPattern ("yyyy-MM-dd HH:mm:ss z");
+        Instant[]  abbreviations_at                      = { Instant.from (utc_formatter.parse ("2020-01-01 00:00:00 UTC")),
+                                                             Instant.from (utc_formatter.parse ("2020-07-01 00:00:00 UTC")) };
 
         for (ZoneId timezone : getAllTimezones ()) {
             ZoneRules  rules = timezone.getRules ();
@@ -434,12 +440,50 @@ public class HarvestData
                 zone_data.add (toLispList (transition_rule_data));
 
                 data.put (timezone, zone_data);
+
+                for (var at : abbreviations_at) {
+                    var  abbreviation = abbreviation_retriever.format (ZonedDateTime.ofInstant (at, timezone));
+                    if (abbreviation.equals (timezone.getId ()))
+                        timezones_with_matching_abbreviations.add (timezone);
+                    else
+                        aliases.computeIfAbsent (abbreviation, __ -> new HashSet <> ()).add (timezone);
+                }
             }
         }
 
+        // When computing timezone alias map we use these rules:
+        // - if timezone identifier matches its normal abbreviation, its DST abbreviation
+        //   becomes an alias (example: "CEST" becomes an alias for "CET");
+        // - else both abbreviations become an alias for the timezone, but only if they
+        //   don't clash with anything else (example: "EGT" and "EGST" are both aliases
+        //   for "America/Scoresbysund").
+        var  timezones_with_conflicting_aliases = new HashSet <ZoneId> ();
+        for (var timezones : aliases.values ()) {
+            if (timezones.size () > 1)
+                timezones_with_conflicting_aliases.addAll (timezones);
+        }
+
+        timezones_with_conflicting_aliases.removeAll (timezones_with_matching_abbreviations);
+
+        for (var it = aliases.values ().iterator (); it.hasNext ();) {
+            var  with_this_alias = it.next ();
+            with_this_alias.removeAll (timezones_with_conflicting_aliases);
+            if (with_this_alias.size () != 1)
+                it.remove ();
+        }
+
         System.out.println ("(");
+
         for (Map.Entry <ZoneId, List <Object>> entry : data.entrySet ())
             System.out.format ("(%s\n %s)\n", entry.getKey (), entry.getValue ().stream ().map (String::valueOf).collect (Collectors.joining ("\n ")));
+
+        // Aliases don't go into names: they are relatively few and are not used for
+        // formatting or parsing, currently only when determining OS timezone.
+        System.out.format ("(:aliases\n %s)\n",
+                           aliases.entrySet ().stream ()
+                           .map ((entry) -> String.format ("(%s . %s)", entry.getKey (), entry.getValue ().iterator ().next ().getId ()))
+                           .collect (Collectors.joining ("\n ")));
+
         System.out.println (")");
     }
 

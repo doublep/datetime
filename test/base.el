@@ -89,6 +89,24 @@
      (datetime--test-set-up-parser datetime--test-timezone datetime--test-locale datetime--test-pattern
        ,@body)))
 
+;; Copied from Eldev source code, see documentation there.
+(defmacro datetime--advised (spec &rest body)
+  (declare (indent 1) (debug (sexp body)))
+  (let ((symbol   (nth 0 spec))
+        (where    (nth 1 spec))
+        (function (nth 2 spec))
+        (props    (nthcdr 3 spec))
+        (fn       (make-symbol "$fn")))
+    `(let ((,fn ,function))
+       (when ,fn
+         (if (advice-member-p ,fn ,symbol)
+             (setf ,fn nil)
+           (advice-add ,symbol ,where ,fn ,@props)))
+       (unwind-protect
+           ,(macroexp-progn body)
+         (when ,fn
+           (advice-remove ,symbol ,fn))))))
+
 (defun datetime--test (command times)
   (unless (listp times)
     (setq times (list times)))
@@ -210,6 +228,11 @@ am-pm                     = %S"
             (should (and (vectorp value) (= (length value) length)))
             (dotimes (k length)
               (should (stringp (aref value k))))))))))
+
+(ert-deftest datetime--determine-system-timezone ()
+  (datetime--advised ('current-time-zone :override (lambda () '(7200 "CEST")))
+    (let ((system-type 'this-system-type-is-not-specialcase))
+      (should (eq (datetime--determine-system-timezone) 'CET)))))
 
 
 (provide 'test/base)

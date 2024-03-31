@@ -207,7 +207,7 @@ be modified freely."
 
 Return value is a list of symbols in no particular order; it can
 be modified freely."
-  (extmap-keys datetime--timezone-extmap))
+  (delq :aliases (extmap-keys datetime--timezone-extmap)))
 
 
 (defgroup datetime nil
@@ -265,7 +265,7 @@ form:
   (let ((timezone (plist-get options :timezone)))
     (if (eq timezone 'system)
         (or (when datetime-timezone
-              (if (extmap-contains-key datetime--timezone-extmap datetime-timezone)
+              (if (and (not (eq datetime-timezone :aliases)) (extmap-contains-key datetime--timezone-extmap datetime-timezone))
                   datetime-timezone
                 (warn "Timezone `%S' (value of `datetime-timezone' variable) is not known" datetime-timezone)
                 nil))
@@ -303,7 +303,7 @@ form:
                                          )
                                        (cadr (current-time-zone))
                                        "?"))))
-      (if (extmap-contains-key datetime--timezone-extmap system-timezone)
+      (if (and (not (eq system-timezone :aliases)) (extmap-contains-key datetime--timezone-extmap system-timezone))
           system-timezone
         (let* ((aliases (extmap-get datetime--timezone-extmap :aliases t))
                (entry   (assq system-timezone aliases)))
@@ -702,7 +702,7 @@ to this function.
     form of a Lisp lambda."
   (let* ((locale        (datetime--get-locale options))
          (timezone      (datetime--get-timezone options))
-         (timezone-data (or (extmap-get datetime--timezone-extmap timezone t)
+         (timezone-data (or (unless (eq timezone :aliases) (extmap-get datetime--timezone-extmap timezone t))
                             (error "Unknown timezone `%s'" timezone)))
          need-year need-month need-weekday need-day need-hour need-time
          format-parts
@@ -1126,7 +1126,7 @@ unless specified otherwise.
     of Lisp lambda."
   (let* ((locale           (datetime--get-locale options))
          (timezone         (datetime--get-timezone options))
-         (timezone-data    (or (extmap-get datetime--timezone-extmap timezone t)
+         (timezone-data    (or (unless (eq timezone :aliases) (extmap-get datetime--timezone-extmap timezone t))
                                (error "Unknown timezone `%s'" timezone)))
          (defaults         (plist-get options :defaults))
          (validating       (not (plist-get options :non-validating)))

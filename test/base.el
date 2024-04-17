@@ -229,10 +229,20 @@ am-pm                     = %S"
             (dotimes (k length)
               (should (stringp (aref value k))))))))))
 
-(ert-deftest datetime--determine-system-timezone ()
+(ert-deftest datetime--determine-system-timezone-1 ()
   (datetime--advised ('current-time-zone :override (lambda () '(7200 "CEST")))
     (let ((system-type 'this-system-type-is-not-specialcase))
       (should (eq (datetime--determine-system-timezone) 'CET)))))
+
+(ert-deftest datetime--determine-system-timezone-2 ()
+  (datetime--advised ('current-time-zone :override (lambda () '(3600 "Central European Time")))
+    (let ((system-type 'this-system-type-is-not-specialcase))
+      (should (eq (datetime--determine-system-timezone) 'CET)))))
+
+(ert-deftest datetime--determine-system-timezone-3 ()
+  (datetime--advised ('current-time-zone :override (lambda () '(0 "Coordinated Universal Time")))
+    (let ((system-type 'this-system-type-is-not-specialcase))
+      (should (eq (datetime--determine-system-timezone) 'UTC)))))
 
 
 (provide 'test/base)

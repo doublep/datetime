@@ -326,11 +326,12 @@ public class HarvestData
     protected static void printTimezoneData () throws Exception
     {
         var        data                                  = new LinkedHashMap <ZoneId, List <Object>> ();
+        var        matching_abbreviation_aliases         = new LinkedHashMap <String, ZoneId> ();
         var        aliases                               = new LinkedHashMap <String, Set <ZoneId>> ();
-        var        timezones_with_matching_abbreviations = new HashSet <ZoneId> ();
-        var        abbreviation_retriever                = DateTimeFormatter.ofPattern ("z", Locale.ENGLISH);
+        var        abbreviation_retriever                = DateTimeFormatter.ofPattern ("z",    Locale.ENGLISH);
+        var        full_name_retriever                   = DateTimeFormatter.ofPattern ("zzzz", Locale.ENGLISH);
         var        utc_formatter                         = DateTimeFormatter.ofPattern ("yyyy-MM-dd HH:mm:ss z");
-        Instant[]  abbreviations_at                      = { Instant.from (utc_formatter.parse ("2020-01-01 00:00:00 UTC")),
+        Instant[]  find_aliases_at                       = { Instant.from (utc_formatter.parse ("2020-01-01 00:00:00 UTC")),
                                                              Instant.from (utc_formatter.parse ("2020-07-01 00:00:00 UTC")) };
 
         for (ZoneId timezone : getAllTimezones ()) {
@@ -440,35 +441,50 @@ public class HarvestData
                 zone_data.add (toLispList (transition_rule_data));
 
                 data.put (timezone, zone_data);
+            }
 
-                for (var at : abbreviations_at) {
-                    var  abbreviation = abbreviation_retriever.format (ZonedDateTime.ofInstant (at, timezone));
-                    if (abbreviation.equals (timezone.getId ()))
-                        timezones_with_matching_abbreviations.add (timezone);
-                    else
-                        aliases.computeIfAbsent (abbreviation, __ -> new HashSet <> ()).add (timezone);
+            var  abbreviations = (Arrays.stream (find_aliases_at)
+                                  .map ((at) -> abbreviation_retriever.format (ZonedDateTime.ofInstant (at, timezone)))
+                                  .collect (Collectors.toSet ()));
+            var  canonical     = abbreviations.contains (timezone.getId ());
+            var  full_names    = (Arrays.stream (find_aliases_at)
+                                  .map ((at) -> full_name_retriever.format (ZonedDateTime.ofInstant (at, timezone)))
+                                  .collect (Collectors.toSet ()));
+
+            for (var alias : Stream.concat (abbreviations.stream (), full_names.stream ()).collect (Collectors.toSet ())) {
+                if (canonical) {
+                    if (matching_abbreviation_aliases.containsKey (alias)) {
+                        throw new IllegalStateException (String.format ("cannot decide between %s and %s for alias '%s'",
+                                                                        matching_abbreviation_aliases.get (alias), timezone, alias));
+                    }
+
+                    matching_abbreviation_aliases.put (alias, timezone);
                 }
+
+                aliases.computeIfAbsent (alias, __ -> new HashSet <> ()).add (timezone);
             }
         }
 
         // When computing timezone alias map we use these rules:
         // - if timezone identifier matches its normal abbreviation, its DST abbreviation
-        //   becomes an alias (example: "CEST" becomes an alias for "CET");
-        // - else both abbreviations become an alias for the timezone, but only if they
-        //   don't clash with anything else (example: "EGT" and "EGST" are both aliases
-        //   for "America/Scoresbysund").
-        var  timezones_with_conflicting_aliases = new HashSet <ZoneId> ();
-        for (var timezones : aliases.values ()) {
-            if (timezones.size () > 1)
-                timezones_with_conflicting_aliases.addAll (timezones);
-        }
+        //   and full names becomes aliases (example: "CEST" and "Central European Time"
+        //   become aliases for "CET");
+        // - else both abbreviations and names become an alias for the timezone, but only
+        //   if they don't clash with anything else (example: "EGT" and "EGST" are both
+        //   aliases for "America/Scoresbysund").
+        for (var it = aliases.entrySet ().iterator (); it.hasNext ();) {
+            var  entry              = it.next ();
+            var  canonical_timezone = matching_abbreviation_aliases.get (entry.getKey ());
 
-        timezones_with_conflicting_aliases.removeAll (timezones_with_matching_abbreviations);
-
-        for (var it = aliases.values ().iterator (); it.hasNext ();) {
-            var  with_this_alias = it.next ();
-            with_this_alias.removeAll (timezones_with_conflicting_aliases);
-            if (with_this_alias.size () != 1)
+            if (canonical_timezone != null) {
+                if (entry.getKey ().equals (canonical_timezone.getId ())) {
+                    // To avoid "aliases" like CET -> CET.
+                    it.remove ();
+                }
+                else
+                    entry.setValue (Set.of (canonical_timezone));
+            }
+            else if (entry.getValue ().size () != 1)
                 it.remove ();
         }
 
@@ -481,7 +497,7 @@ public class HarvestData
         // formatting or parsing, currently only when determining OS timezone.
         System.out.format ("(:aliases\n %s)\n",
                            aliases.entrySet ().stream ()
-                           .map ((entry) -> String.format ("(%s . %s)", entry.getKey (), entry.getValue ().iterator ().next ().getId ()))
+                           .map ((entry) -> String.format ("(%s . %s)", quoteString (entry.getKey ()), entry.getValue ().iterator ().next ().getId ()))
                            .collect (Collectors.joining ("\n ")));
 
         System.out.println (")");

@@ -306,7 +306,7 @@ form:
       (if (and (not (eq system-timezone :aliases)) (extmap-contains-key datetime--timezone-extmap system-timezone))
           system-timezone
         (let* ((aliases (extmap-get datetime--timezone-extmap :aliases t))
-               (entry   (assq system-timezone aliases)))
+               (entry   (assoc (symbol-name system-timezone) aliases)))
           (if entry
               (cdr entry)
             (error "Failed to determine system timezone%s; consider customizing `datetime-timezone' variable"
@@ -2068,7 +2068,7 @@ create based on timezones `datetime' knows about and their rules.
 
 Locale-specific timezone names are contained in a different
 database.  See `datetime-timezone-name-database-version'."
-  8)
+  9)
 
 (defun datetime-timezone-name-database-version ()
   "Return timezone name database version, a simple integer.

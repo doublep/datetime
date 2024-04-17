@@ -326,8 +326,8 @@ public class HarvestData
     protected static void printTimezoneData () throws Exception
     {
         var        data                                  = new LinkedHashMap <ZoneId, List <Object>> ();
-        var        matching_abbreviation_aliases         = new LinkedHashMap <String, ZoneId> ();
-        var        aliases                               = new LinkedHashMap <String, Set <ZoneId>> ();
+        var        matching_abbreviation_aliases         = new HashMap <String, ZoneId> ();
+        var        aliases                               = new HashMap <String, Set <ZoneId>> ();
         var        abbreviation_retriever                = DateTimeFormatter.ofPattern ("z",    Locale.ENGLISH);
         var        full_name_retriever                   = DateTimeFormatter.ofPattern ("zzzz", Locale.ENGLISH);
         var        utc_formatter                         = DateTimeFormatter.ofPattern ("yyyy-MM-dd HH:mm:ss z");
@@ -496,7 +496,7 @@ public class HarvestData
         // Aliases don't go into names: they are relatively few and are not used for
         // formatting or parsing, currently only when determining OS timezone.
         System.out.format ("(:aliases\n %s)\n",
-                           aliases.entrySet ().stream ()
+                           aliases.entrySet ().stream ().sorted ((a, b) -> a.getKey ().compareTo (b.getKey ()))
                            .map ((entry) -> String.format ("(%s . %s)", quoteString (entry.getKey ()), entry.getValue ().iterator ().next ().getId ()))
                            .collect (Collectors.joining ("\n ")));
 

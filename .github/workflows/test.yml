@@ -20,15 +20,22 @@ jobs:
                         '28.1', '28.2',
                         '29.1', '29.2', '29.3',
                         'snapshot']
-        include:
+        # include:
           # Disabled for now: takes forever on default GitHub runners.
           # Either they use particularly slow machines or (I suspect
           # more likely) Emacs has some problems communicating with
           # processes on that OS, resulting in delays.
           # - os: macos-latest
           #   emacs_version: '29.3'
-          - os: windows-latest
-            emacs_version: '29.3'
+
+          # Disabled for now: it looks like on fails on GitHub for
+          # unrelated reasons due to mishandling of Hebrew or Chinese
+          # characters.  The fault appears to be unrelated to
+          # `datetime'.  I even reran a previously passing test
+          # (i.e. with zero changes, only whatever GitHub has changed
+          # in their setup in the meantime) and it failed too.
+          # - os: windows-latest
+          #   emacs_version: '29.3'
 
     steps:
     - name: Set up Emacs

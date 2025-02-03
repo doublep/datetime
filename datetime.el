@@ -1,6 +1,6 @@
 ;;; datetime.el --- Parsing, formatting and matching timestamps  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016-2024 Paul Pogonyshev
+;; Copyright (C) 2016-2025 Paul Pogonyshev
 
 ;; Author:     Paul Pogonyshev <pogonyshev@gmail.com>
 ;; Maintainer: Paul Pogonyshev <pogonyshev@gmail.com>

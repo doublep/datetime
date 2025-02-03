@@ -962,6 +962,7 @@ to this function.
          (num-years            (length all-year-transitions))
          transitions)
     (when (>= year-offset num-years)
+      ;; Expand the transition array if it is too small.  Don't expand by too few elements at a time.
       (setf (cadr timezone-data) (setq all-year-transitions (vconcat all-year-transitions (make-vector (max (1+ (- year-offset num-years)) (/ num-years 2) 10) nil)))))
     (let ((year      (+ (nth 2 timezone-data) year-offset))
           (year-base (+ (nth 0 timezone-data) (* year-offset datetime--average-seconds-in-year)))
@@ -977,8 +978,14 @@ to this function.
                                        day-of-month -1))
                    (offset-before   (plist-get rule :before)))
               (unless transitions
-                ;; Preserve our DST "flag" across year boundary.
-                (push (if (floatp (car (last (aref all-year-transitions (1- year-offset)))))
+                ;; Preserve our DST "flag" across year boundary.  If there transitions for the previous year
+                ;; are not computed yet, look at the one before and so on, until we find something.  With
+                ;; transitions coming from the rules it shouldn't matter: either every year ends in DST or
+                ;; every year ends in non-DST.
+                (push (if (floatp (let ((k year-offset)
+                                        historic-transitions)
+                                    (while (null (setf historic-transitions (aref all-year-transitions (setf k (1- k))))))
+                                    (car (last historic-transitions))))
                           (float offset-before)
                         offset-before)
                       transitions))

@@ -129,7 +129,11 @@
 (datetime--define-error 'datetime-unsupported-timezone "Timezones are currently not supported")
 
 
-(defconst datetime--directory (file-name-directory (or load-file-name (buffer-file-name))))
+;; Defining the three extmap database variables like this so that values _are_ replaced if these
+;; variable declaration is reevaluated (rather, the whole buffer).  Otherwise e.g. reinstalling
+;; `datetime' package could leave unusable extmap objects referring to removed files.
+;;
+;; FIXME: Would be nice to add ERT test(s).
 
 ;; Extracted from Java using `dev/HarvestData.java'.  All patterns are
 ;; obviously of `java' type.
@@ -153,10 +157,10 @@
 ;;   - all patterns have the following fallbacks: `:short' defaults to
 ;;     `:medium', `:long' defaults to `:medium', `:full' defaults to
 ;;     `:long'.
-(defvar datetime--locale-extmap (extmap-init (expand-file-name "locale-data.extmap" datetime--directory) :auto-reload t))
+(defvar datetime--locale-extmap nil)
 
 ;; Extracted from Java using `dev/HarvestData.java'.
-(defvar datetime--timezone-extmap (extmap-init (expand-file-name "timezone-data.extmap" datetime--directory) :weak-data t :auto-reload t))
+(defvar datetime--timezone-extmap nil)
 
 ;; Extracted from Java using `dev/HarvestData.java'.
 ;;
@@ -171,7 +175,19 @@
 ;;                                  English locale;
 ;;         [ABBREVIATED FULL] -- no special for DST;
 ;;         [ABBREVIATED-STD ABBREVIATED-DST FULL-STD FULL-DST].
-(defvar datetime--timezone-name-extmap (extmap-init (expand-file-name "timezone-name-data.extmap" datetime--directory) :weak-data t :auto-reload t))
+(defvar datetime--timezone-name-extmap nil)
+
+(dolist (entry
+         '((datetime--locale-extmap "locale-data.extmap" :auto-reload t)
+           (datetime--timezone-extmap "timezone-data.extmap" :weak-data t :auto-reload t)
+           (datetime--timezone-name-extmap "timezone-name-data.extmap" :weak-data t :auto-reload t)))
+  (let ((directory (file-name-directory (or load-file-name (buffer-file-name))))
+        (variable  (nth 0 entry))
+        (filename  (nth 1 entry))
+        (options   (nthcdr 2 entry)))
+    (unless (ignore-errors (file-equal-p (file-name-directory (cdr (assq 'filename (extmap-statistics (symbol-value variable)))))
+                                         directory))
+      (set variable (apply #'extmap-init (expand-file-name filename directory) options)))))
 
 (defvar datetime--pattern-parsers '((parsed . (lambda (pattern options) pattern))
                                     (java   . datetime--parse-java-pattern)))
@@ -223,7 +239,6 @@ You can see the list of locales supported by the library by
 evaluating this form:
 
     (prin1-to-string (sort (datetime-list-locales t) #\\='string<))"
-  :group 'datetime
   ;; The only minor problem is the type won't be rebuilt if `datetime--locale-extmap' is
   ;; autoreloaded, but oh well.
   :type  `(choice (const nil) ,@(mapcar (lambda (locale) `(const ,locale)) (datetime-list-locales t))))
@@ -237,7 +252,6 @@ You can see the list of supported timezones by evaluating this
 form:
 
     (prin1-to-string (sort (datetime-list-timezones) #\\='string<))"
-  :group 'datetime
   :type  `(choice (const nil) ,@(mapcar (lambda (locale) `(const ,locale)) (datetime-list-timezones))))
 
 
@@ -1826,7 +1840,7 @@ OPTIONS are passed to `datetime-recode-pattern'.  Currently no
 options can affect result of this function."
   (datetime--pattern-includes-p type pattern options second-fractional))
 
-(define-obsolete-function-alias 'datetime-pattern-includes-millisecond-p 'datetime-pattern-includes-second-fractionals-p "0.6.1")
+(define-obsolete-function-alias 'datetime-pattern-includes-millisecond-p #'datetime-pattern-includes-second-fractionals-p "0.6.1")
 
 (defun datetime-pattern-num-second-fractionals (type pattern &rest options)
   "Determine number of second fractional digits in the PATTERN.

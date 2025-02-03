@@ -2082,7 +2082,7 @@ create based on timezones `datetime' knows about and their rules.
 
 Locale-specific timezone names are contained in a different
 database.  See `datetime-timezone-name-database-version'."
-  9)
+  10)
 
 (defun datetime-timezone-name-database-version ()
   "Return timezone name database version, a simple integer.
